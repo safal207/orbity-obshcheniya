@@ -83,7 +83,7 @@ function renderToday() {
   return `${heading('ОРБИТЫ ОБЩЕНИЯ · СЕГОДНЯ', finished ? 'Ты прошёл(ла) весь маршрут.' : 'Лучший разговор начинается с вопроса.', finished ? 'Возвращайся к практике и пробуй навыки в реальных разговорах.' : 'Один урок, одна ситуация и немного больше ясности между вами.', `${String(moduleIndex + 1).padStart(2, '0')} / 08 · ${module.title}`)}
     <div class="dashboard-grid">
       <section class="feature"><p class="eyebrow">${finished ? 'ПОВТОРИ И ПРИМЕНИ' : 'ТВОЙ СЛЕДУЮЩИЙ ШАГ'}</p><h2>${esc(next.title)}</h2><p>${esc(next.summary)}</p><div class="feature-meta"><span class="tag">${esc(module.title)}</span><span class="tag">${next.minutes} минут</span><span class="tag">Урок ${number} / ${lessons.length}</span></div><a class="btn peach" href="#lesson/${esc(next.id)}">${finished ? 'Повторить урок' : 'Начать урок'} <span aria-hidden="true">→</span></a></section>
-      <section class="practice-card"><p class="eyebrow">ПОПРОБУЙ СЕЙЧАС</p><div class="sample-dialog"><span class="bubble incoming">У меня был тяжёлый день.</span><span class="bubble outgoing">Хочешь, я просто послушаю или вместе подумаем, что делать?</span></div><h2>Меньше угадывать</h2><p>Потренируй ответы на коротких ситуациях, прежде чем говорить о сложном.</p><a class="btn outline" href="#practice">Открыть практику →</a></section>
+      <section class="practice-card"><p class="eyebrow">ПОПРОБУЙ СЕЙЧАС</p><div class="sample-dialog"><span class="bubble incoming">У меня был тяжёлый день.</span><span class="bubble outgoing">Хочешь, я просто послушаю или вместе подумаем, что делать?</span></div><h2>Меньше угадывать</h2><p>Один короткий вопрос поможет попробовать навык сразу.</p><a class="btn outline" href="#practice/listening-3">Попробовать за 1 минуту →</a></section>
     </div><div class="stats"><div class="stat"><strong>${done} / ${lessons.length}</strong><span>уроков пройдено</span></div><div class="stat"><strong>${dueLessons().length}</strong><span>уроков к повторению</span></div><div class="stat"><strong>${missions.filter(missionDone).length} / ${missions.length}</strong><span>заданий для жизни</span></div></div>`;
 }
 
@@ -120,7 +120,7 @@ function renderPracticeItem(lesson) {
   const index = lessons.indexOf(lesson);
   const next = lessons[(index + 1) % lessons.length];
   const module = modules.find((item) => item.id === lesson.moduleId);
-  return `<a class="back-link" href="#practice">← Все ситуации</a>${heading(`ПРАКТИКА · ${module.title.toUpperCase()}`, lesson.title, lesson.summary)}<div class="practice-layout"><section class="card exercise-panel">${renderQuiz(lesson, 'practice')}</section><aside class="card side-panel"><h2>Сделай шаг дальше</h2><p>${esc(lesson.action)}</p><div class="actions"><a class="btn outline" href="#lesson/${esc(lesson.id)}">Прочитать урок →</a><a class="btn outline" href="#practice/${esc(next.id)}">Следующая ситуация →</a></div></aside></div>`;
+  return `<a class="back-link" href="#practice">← Все ситуации</a>${heading(`ПРАКТИКА · ${module.title.toUpperCase()}`, lesson.title, lesson.summary)}<div class="practice-layout"><section class="card exercise-panel">${renderQuiz(lesson, 'practice')}</section><aside class="card side-panel"><h2>Сделай шаг дальше</h2><p>${esc(lesson.action)}</p><div class="phrase-example"><p class="eyebrow">ПРИМЕР ДЛЯ РАЗГОВОРА</p><blockquote>${esc(lesson.example)}</blockquote><button type="button" class="btn outline" data-copy-example="${esc(lesson.id)}">Скопировать пример</button></div><div class="actions"><a class="btn outline" href="#lesson/${esc(lesson.id)}">Прочитать урок →</a><a class="btn outline" href="#practice/${esc(next.id)}">Следующая ситуация →</a></div></aside></div>`;
 }
 
 function renderMissions() {
@@ -129,7 +129,7 @@ function renderMissions() {
 
 function renderMission(mission) {
   const steps = state.missionSteps[mission.id] || [];
-  return `<a class="back-link" href="#missions">← К заданиям</a>${heading('ПРАКТИКА В ЖИЗНИ', mission.title, mission.description)}<section class="card mission-panel"><h2>Три шага</h2><div class="checklist">${mission.steps.map((step, index) => `<label class="check-row"><input type="checkbox" data-mission="${esc(mission.id)}" data-step="${index}" ${steps[index] ? 'checked' : ''}><span>${esc(step)}</span></label>`).join('')}</div><p data-mission-status class="${missionDone(mission) ? 'success-line' : 'subtle'}">${missionDone(mission) ? 'Задание отмечено как выполненное ✓' : 'Отмечай шаги по мере выполнения. Прогресс хранится на этом устройстве.'}</p></section>`;
+  return `<a class="back-link" href="#missions">← К заданиям</a>${heading('ПРАКТИКА В ЖИЗНИ', mission.title, mission.description)}<section class="card mission-panel"><div class="notice">Делай это задание только добровольно и когда это безопасно. При давлении, угрозах или страхе можно остановиться; сначала позаботься о безопасности и обратись за поддержкой.</div><h2>Три шага</h2><div class="checklist">${mission.steps.map((step, index) => `<label class="check-row"><input type="checkbox" data-mission="${esc(mission.id)}" data-step="${index}" ${steps[index] ? 'checked' : ''}><span>${esc(step)}</span></label>`).join('')}</div><p data-mission-status class="${missionDone(mission) ? 'success-line' : 'subtle'}">${missionDone(mission) ? 'Задание отмечено как выполненное ✓' : 'Отмечай шаги по мере выполнения. Прогресс хранится на этом устройстве.'}</p></section>`;
 }
 
 function renderReview() {
@@ -164,6 +164,7 @@ function route() {
 
 function render() {
   const current = route();
+  document.querySelector('#language-link').href = `en.html${location.hash}`;
   if (current.name !== 'review') { reviewSessionIds = null; reviewAttempts = {}; }
   const labels = { today: 'Сегодня', path: 'Программа', lesson: 'Урок', practice: 'Практика', 'practice-item': 'Практика', missions: 'Задания для жизни', mission: 'Задание', review: 'Повторение', progress: 'Прогресс', about: 'О подходе' };
   document.querySelector('#breadcrumb').textContent = `Орбиты общения / ${labels[current.name]}`;
@@ -203,9 +204,17 @@ function chooseAnswer(id, choice, mode) {
   badge.hidden = !dueLessons().length;
 }
 
-main.addEventListener('click', (event) => {
+main.addEventListener('click', async (event) => {
   const quizButton = event.target.closest('[data-quiz-id]');
   if (quizButton) { chooseAnswer(quizButton.dataset.quizId, Number(quizButton.dataset.choice), quizButton.dataset.mode); return; }
+  const copyButton = event.target.closest('[data-copy-example]');
+  if (copyButton) {
+    const example = lessonById.get(copyButton.dataset.copyExample)?.example;
+    if (!example) return;
+    try { await navigator.clipboard.writeText(example); showToast('Пример скопирован'); }
+    catch { showToast('Не удалось скопировать пример'); }
+    return;
+  }
   const filterButton = event.target.closest('[data-filter]');
   if (filterButton) { filter = filterButton.dataset.filter; render(); return; }
   const noteButton = event.target.closest('[data-save-note]');
