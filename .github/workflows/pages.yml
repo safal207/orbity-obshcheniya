@@ -3,6 +3,7 @@ name: Publish Orbity Obshcheniya
 on:
   push:
     branches: [main]
+  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -13,7 +14,22 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+      - name: Check both languages and content alignment
+        run: |
+          node --check dist/app.js
+          node --check dist/app.en.js
+          node --check dist/course.js
+          node --check dist/course.en.js
+          node tests/locales.mjs
+          node tests/ui-smoke.mjs
   deploy:
+    if: github.event_name != 'pull_request'
+    needs: validate
     runs-on: ubuntu-latest
     permissions:
       pages: write
@@ -24,10 +40,6 @@ jobs:
     steps:
       - name: Check out source
         uses: actions/checkout@v6
-      - name: Check JavaScript syntax
-        run: |
-          node --check dist/app.js
-          node --check dist/course.js
       - name: Configure Pages
         uses: actions/configure-pages@v5
       - name: Upload website

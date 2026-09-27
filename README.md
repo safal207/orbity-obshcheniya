@@ -1,3 +1,28 @@
+# Conversation Orbits / Орбиты общения
+
+An interactive communication practice site for people in relationships: 8 themes, 32 short lessons with answer feedback, 6 optional real-life exercises, review, and local progress. It helps visitors rehearse clearer questions, listening, requests, boundaries, and repair after conflict. It does not claim to measure or guarantee a change in a relationship.
+
+## Try it in English
+
+- [One-minute practice](https://safal207.github.io/orbity-obshcheniya/en.html#practice/listening-3)
+- [Full English course](https://safal207.github.io/orbity-obshcheniya/en.html)
+- [Русская версия](https://safal207.github.io/orbity-obshcheniya/)
+
+The language link keeps the current lesson or exercise open. Both languages use the same lesson IDs and browser progress, so switching languages does not reset your work. No account is needed. Notes and progress stay in this browser's `localStorage`; the optional JSON export can contain personal notes. Treat that file as private.
+
+The “Mars and Venus” image is a conversation prompt inspired by John Gray's books, not a rule about how women or men behave. Ask each person what support they prefer. This is an independent educational project with original exercises; it is not therapy or an official course based on those books. If a conversation involves threats, pressure, or fear, safety and trusted support come before a paired exercise.
+
+Run locally with `node server.mjs`, then open `http://127.0.0.1:5187/` or `/en.html`. Check the bilingual content and answer-key alignment with `node tests/locales.mjs`. GitHub Pages publishes `dist` from `main` after validation.
+
+## Sources and inspiration
+
+- [John Gray's books](https://www.marsvenus.com/books) — source of the metaphor; not evidence for universal sex-based communication rules.
+- [The Gottman Method](https://www.gottman.com/about/the-gottman-method/) — attention to connection, conflict, and repair.
+- [Nonviolent Communication](https://www.nonviolentcommunication.com/pdf_files/nvc2-chapter-one.html) — observation, feeling, need, and request.
+- [Purdue University on supportive communication](https://www.purdue.edu/uns/html4ever/2004/040217.MacGeorge.sexroles.html) — a study of similarities in support preferences.
+
+---
+
 # Орбиты общения
 
 Интерактивный тренажёр навыков общения для женщин и мужчин: 8 этапов, 32 коротких урока и проверки, 6 заданий для жизни, повторение и перенос прогресса.
