@@ -1,64 +1,65 @@
-# Progress safety: bounded repair of audit items 1–4
+# Progress safety: audit items 1–4
 
-Base: `32211982cb42f5703eb68eec306c3acaa6e1640c` (2026-09-28 audit).
-This change does not alter course content, layout, or the progress export version.
+Integrated with main `529b8c52e113835df9b332f70cf50916b8292ca4` after the
+initial repair was prepared against `32211982`. The newer one-question UI,
+guided onboarding, automatic note saving, lesson-completion rules, existing
+skip-link handler, markup, styles, course content and enhanced smoke tests
+are preserved. The reconciliation commit has both histories as parents.
 
 ## Persistence contract
 
-RU and EN now use `dist/progress-store.js` and the existing
-`orbity-dialoga-progress-v1` key. A save acquires that same-name exclusive Web
-Lock, reads the latest state, changes only the requested answer/note/mission
-step, and writes once. The UI receives the new state only after `setItem`
-succeeds. Lock acquisition has a five-second abort timer. No prompt or await
-occurs inside the read/modify/write callback.
+RU and EN use `dist/progress-store.js` with the existing
+`orbity-dialoga-progress-v1` key. Each save acquires the same-name exclusive
+Web Lock, reads the latest saved state, changes only the requested fields,
+and writes once. State and success messages change only after `setItem`
+succeeds. Lock acquisition has a five-second abort timer; no prompt or await
+occurs within the synchronous read/modify/write callback.
 
-All five exported maps are validated before showing the replacement prompt:
-completed timestamps, answer indices, note strings (maximum 2,000 characters),
-review timestamps, and exact boolean mission-step arrays. Arrays in place of
-maps, unknown IDs, unsupported versions, missing maps, invalid values and
-unexpected fields are rejected rather than silently dropped. Existing complete
-v1 exports remain valid, including empty progress and files without `savedAt`.
-A changed storage snapshot after the confirmation began aborts an import.
+Imports validate all five maps before the replacement prompt: timestamps,
+answer indices, note strings (maximum 2,000 characters), and exact boolean
+mission-step arrays. Map arrays/nulls, unknown IDs, bad values, unsupported
+versions, missing maps and unexpected fields are rejected, not dropped.
+Both legacy five-map v1 exports and the newer v1 exports with `focusModule`,
+`currentLessonId` and `guidedFlow` work. Optional navigation fields are
+validated and preserved. A storage change after the confirmation snapshot
+aborts replacement. Unsaved/pending local notes block imports.
 
-Independent edits in tabs are rebased on the latest saved state. Saving a note
-compares its current stored text with the editor's original text; a conflicting
-edit is rejected and the local draft stays in the textarea. Copy the draft and
-reopen the lesson to see the other tab's note before resolving the conflict.
-Storage/focus refresh does not re-render over a dirty textarea. Exports read
-fresh saved state, not the tab's cached state. They do not include unsaved drafts.
+Independent tab edits rebase on current saved state. Conflicting notes compare
+against the editor baseline and are rejected, not silently replaced. Autosaves
+queue in typing order; only successful saves advance that baseline. A persistent
+note status reports saving/saved/error, and a retry button retries retained text.
+Failed/pending drafts stay in this tab's memory across SPA navigation. Storage
+and focus refresh do not re-render over such drafts. A `beforeunload` handler
+requests a browser warning before leaving with unsaved text; it is not a backup
+or a guarantee that a browser will display the warning. Copy important drafts
+before closing/reloading. To resolve a cross-tab conflict, copy the local draft
+and reload to compare it with the saved remote note.
 
-Storage failure, denied access, invalid stored data, missing Web Locks and lock
-wait expiry are errors, not successful saves. A failed mission write restores
-the checkbox; a failed answer/import does not advance in-memory progress.
-A failed note save leaves its text available for retry.
+Only full-lesson answers mark lessons complete; guided and standalone practice
+retain the newer main branch's distinct behavior. Topic/lesson navigation also
+uses coordinated writes. A stale guided answer cannot advance a different topic.
+Exports read fresh saved data; they do not include unsaved local drafts.
+Failed answer/mission/import writes do not advance the visible saved progress.
 
-## Compatibility and limits
+## Boundaries and rollout
 
-Web Locks must be available (use a modern browser on HTTPS or localhost).
-There is deliberately no unsafe unlocked write fallback: reading and browsing
-remain available, but saving reports an error when safe coordination is absent.
-Reload **all** existing RU/EN tabs after deployment. Old pre-fix code does not
-cooperate with the new lock, so mixed-version tabs are outside this guarantee.
-This is local browser persistence, not device sync, a backup, or a guarantee
-against user-cleared storage, storage corruption, or uncooperative scripts.
-Malformed stored data is not silently overwritten; normal writes/imports report
-an error until the invalid stored entry is deliberately recovered outside this UI.
+Saving requires Web Locks in a supported browser on HTTPS/localhost. There is
+no unsafe unlocked fallback: reads/browsing remain available; failed saving is
+explicit. Reload all previously open RU/EN tabs after deployment. Old pre-fix
+code does not acquire the lock, so mixed-version tabs are outside this contract.
+This is local browser persistence, not cross-device sync or protection against
+user-cleared storage, corruption, or uncooperative scripts. Corrupt stored data
+is not silently overwritten; its recovery remains outside the current UI.
 
-The separate audit items on review pagination, skip-link routing, unsaved drafts
-on navigation/language switching and the 320px layout are not closed here.
+PR checks use `orbity-pr-<number>`; main publication retains `github-pages` and
+does not cancel running publication. Deploy also requires validation and
+`refs/heads/main`. Queue isolation is not a promise to deploy every main push.
 
-## CI isolation
+The old audit's review/layout/navigation items need acceptance against the
+newer interface; this PR does not declare all remaining audit items closed.
+No relationship-effectiveness or therapy claim is changed.
 
-PR checks use `orbity-pr-<number>`; main publication keeps `github-pages` and
-never cancels an in-progress publication. Deploy requires both validation and
-`refs/heads/main`. This isolates PR validation from pending publication runs;
-it does not assert that every intermediate main push is deployed.
-
-References:
-- https://developer.mozilla.org/en-US/docs/Web/API/LockManager/request
-- https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency
-
-## Reproduce
+## Executed checks
 
 ```sh
 node --check dist/app.js
@@ -72,16 +73,21 @@ node --test tests/progress-safety.mjs tests/ui-safety.mjs tests/workflow-safety.
 git diff --check
 ```
 
-Local Node 22.16.0 verification: both original scripts pass; 73 new tests pass.
-The same 32 black-box UI cases against the original app modules yielded 28
-failures and four passes, confirming the tests detect pre-fix behavior. To repeat
-that comparison, copy the original app/course modules into a separate directory
-and run `ORBITY_APP_DIR=/path/to/original/modules node --test tests/ui-safety.mjs`.
+Node 22.16.0: both enhanced upstream scripts pass; **92 new tests pass**.
+The same 42 black-box UI cases against main `529b8c52` produce **37 failures
+and five passes**. Set `ORBITY_APP_DIR` to that revision's original dist folder
+to reproduce the negative control with `node --test tests/ui-safety.mjs`.
+Earlier verification on the original pre-redesign base was superseded by this
+integrated run; it is not used to claim acceptance of the new UI.
 
-The storage tests use a serialized lock test double; UI tests use a DOM stub.
-Workflow checks are static configuration assertions, not a live queue experiment.
-A local Chromium navigation attempt was blocked with
-`net::ERR_BLOCKED_BY_ADMINISTRATOR`; no real two-tab browser pass, visual pass or
-live-site deployment verification is claimed. Browser acceptance should cover
-RU/EN parallel writes, conflicting drafts, imports and simulated storage denial
-before merging. No relationship-effectiveness claim is changed by this repair.
+Storage tests use a serialized lock test double; UI tests use DOM stubs;
+workflow assertions inspect configuration, not a live queue experiment.
+Chromium navigation was blocked in this environment with
+`net::ERR_BLOCKED_BY_ADMINISTRATOR`. No real-browser two-tab, visual, or
+live-site verification is claimed. Before merging, exercise RU/EN parallel
+writes, note conflicts, rapid typing, storage failures and old/new imports in
+an actual browser. Keep the PR unmerged until owner approval and acceptance.
+
+References:
+- https://developer.mozilla.org/en-US/docs/Web/API/LockManager/request
+- https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency

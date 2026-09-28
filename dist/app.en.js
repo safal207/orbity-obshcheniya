@@ -1,259 +1,531 @@
 import { modules, lessons, missions } from './course.en.js';
 
 import { createProgressStore, emptyState, PROGRESS_KEY } from './progress-store.js';
-const store = createProgressStore({ lessons, missions });
-const lessonById = new Map(lessons.map((lesson) => [lesson.id, lesson]));
-const missionById = new Map(missions.map((mission) => [mission.id, mission]));
+const byLesson = new Map(lessons.map((item) => [item.id, item]));
+const byMission = new Map(missions.map((item) => [item.id, item]));
+const guided = {
+  listening: ['listening-3', 'listening-1', 'listening-2'],
+  conflict: ['conflict-1', 'conflict-2', 'conflict-3'],
+  needs: ['needs-1', 'needs-2', 'needs-3'],
+};
 const main = document.querySelector('#main');
+const menu = document.querySelector('#site-menu');
 const toast = document.querySelector('#toast');
-let filter = 'all';
+const phases = {};
+const attempts = {};
+let reviewQueue = null;
+let reviewPosition = 0;
+let lastRoute = '';
 let toastTimer;
-let reviewSessionIds = null;
-let reviewAttempts = {};
 
+const store = createProgressStore({ lessons, missions, guided });
 const storageMessages = {
   "INVALID_FILE": "The progress file is malformed or has an unsupported structure.",
   "INVALID_STORED": "Saved data is malformed. Nothing was overwritten.",
-  "STORAGE_FAILED": "Could not save or read progress. Your text remains on screen; please retry.",
+  "STORAGE_FAILED": "Could not save or read progress. Changes are not confirmed; your note draft remains in this tab.",
   "LOCK_UNAVAILABLE": "Safe saving is unavailable. Copy your note and open the HTTPS site in a modern browser.",
   "LOCK_TIMEOUT": "Another tab is busy saving. Nothing was written; please retry.",
-  "NOTE_CONFLICT": "Another tab changed this note. Your text remains on screen: copy it, then reopen the lesson.",
+  "NOTE_CONFLICT": "Another tab changed this note. Copy your draft, then reload the page to compare.",
   "IMPORT_CONFLICT": "Progress changed in another tab. Import cancelled; check the data and retry.",
-  "FILE_TOO_LARGE": "File is too large."
+  "FILE_TOO_LARGE": "File is too large.",
+  "FLOW_CONFLICT": "Another tab changed the topic. Open the topic chooser again.",
+  "UNSAVED_NOTES": "Save or copy your unsaved notes first. Import was not performed."
 };
+const drafts = new Map();
 let initialLoadError;
-let noteBaseline = '';
-
 function storageError(error) {
-  showToast(storageMessages[error?.code] || storageMessages.STORAGE_FAILED, 10000);
+  announce(storageMessages[error?.code] || storageMessages.STORAGE_FAILED, 10000);
 }
-
 function loadState() {
   try { return store.read(); }
   catch (error) { initialLoadError = error; return emptyState(); }
 }
-
 let state = loadState();
-
 async function commit(operation, message = '') {
   try {
-    const saved = await operation();
-    state = saved;
-    if (message) showToast(message);
+    state = await operation();
+    if (message) announce(message);
     return true;
   } catch (error) { storageError(error); return false; }
+}
+function draftFor(id) {
+  if (!drafts.has(id)) {
+    const value = state.notes[id] || '';
+    drafts.set(id, { value, base: value, pending: 0, chain: Promise.resolve(), status: '' });
+  }
+  return drafts.get(id);
+}
+function hasUnsavedNotes() {
+  return [...drafts.values()].some((draft) => draft.pending || draft.value !== draft.base);
+}
+function noteStatus(id, text) {
+  const draft = draftFor(id);
+  draft.status = text;
+  const status = main.querySelector('[data-note-status="' + id + '"]');
+  if (status) status.textContent = text;
+}
+function saveNote(id, value) {
+  const draft = draftFor(id);
+  draft.value = value;
+  draft.pending++;
+  noteStatus(id, "Saving note…");
+  // Each edit uses the baseline established by the preceding successful save.
+  // A rejected save never advances that baseline or replaces a competing note.
+  draft.chain = draft.chain.then(async () => {
+    const ok = await commit(() => store.saveNote(id, value, draft.base));
+    if (ok) draft.base = value;
+    draft.pending--;
+    if (!draft.pending) noteStatus(id, ok ? "Note saved on this device." : toast.textContent);
+    return ok;
+  });
+  return draft.chain;
 }
 
 function esc(value) {
   return String(value).replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
 }
 
-function showToast(message, duration = 3500) {
+function announce(message, duration = 3000) {
   toast.textContent = message;
   toast.classList.add('show');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => toast.classList.remove('show'), duration);
 }
 
-function completedCount() { return lessons.filter((lesson) => state.completed[lesson.id]).length; }
+function doneCount() { return lessons.filter((item) => state.completed[item.id]).length; }
 function missionDone(mission) { return mission.steps.every((_, index) => state.missionSteps[mission.id]?.[index]); }
-function dueLessons() { return lessons.filter((lesson) => state.completed[lesson.id] && (state.review[lesson.id] || 0) <= Date.now()); }
-function nextLesson() { return lessons.find((lesson) => !state.completed[lesson.id]) || lessons[0]; }
+function dueLessons() { return lessons.filter((item) => state.completed[item.id] && (state.review[item.id] || 0) <= Date.now()); }
+function moduleOf(lesson) { return modules.find((item) => item.id === lesson.moduleId); }
 
-function heading(eyebrow, title, description, pill = '') {
-  return `<div class="page-heading"><div><p class="eyebrow">${esc(eyebrow)}</p><h1>${esc(title)}</h1><p>${esc(description)}</p></div>${pill ? `<span class="level-pill">${esc(pill)}</span>` : ''}</div>`;
+function recommended() {
+  if (state.currentLessonId && byLesson.has(state.currentLessonId) && !state.completed[state.currentLessonId]) return byLesson.get(state.currentLessonId);
+  if (state.currentLessonId && byLesson.has(state.currentLessonId)) {
+    const next = nextAfter(byLesson.get(state.currentLessonId));
+    if (next) return next;
+  }
+  if (state.focusModule) {
+    const inTopic = lessons.find((item) => item.moduleId === state.focusModule && !state.completed[item.id]);
+    if (inTopic) return inTopic;
+  }
+  return lessons.find((item) => !state.completed[item.id]) || null;
 }
 
-function progressBar(count, total) {
-  const percent = total ? Math.round(100 * count / total) : 0;
-  return `<div class="progress-track" role="progressbar" aria-label="Module progress" aria-valuemin="0" aria-valuemax="${total}" aria-valuenow="${count}"><div class="progress-fill" style="width:${percent}%"></div></div>`;
+function nextAfter(lesson) {
+  const topic = lessons.filter((item) => item.moduleId === lesson.moduleId);
+  const position = topic.findIndex((item) => item.id === lesson.id);
+  return topic.slice(position + 1).find((item) => !state.completed[item.id])
+    || topic.find((item) => !state.completed[item.id])
+    || lessons.find((item) => !state.completed[item.id])
+    || null;
 }
 
-function renderToday() {
-  const next = nextLesson();
-  const number = lessons.indexOf(next) + 1;
-  const moduleIndex = modules.findIndex((module) => module.id === next.moduleId);
-  const module = modules[moduleIndex];
-  const done = completedCount();
-  const finished = done === lessons.length;
-  return `${heading('CONVERSATION ORBITS · TODAY', finished ? 'You completed the whole path.' : 'A better conversation starts with a question.', finished ? 'Keep practising these skills in real conversations.' : 'One lesson, one situation, and a little more clarity between you.', `${String(moduleIndex + 1).padStart(2, '0')} / 08 · ${module.title}`)}
-    <div class="dashboard-grid">
-      <section class="feature"><p class="eyebrow">${finished ? 'REVIEW AND APPLY' : 'YOUR NEXT STEP'}</p><h2>${esc(next.title)}</h2><p>${esc(next.summary)}</p><div class="feature-meta"><span class="tag">${esc(module.title)}</span><span class="tag">${next.minutes} minutes</span><span class="tag">Lesson ${number} / ${lessons.length}</span></div><a class="btn peach" href="#lesson/${esc(next.id)}">${finished ? 'Review lesson' : 'Start lesson'} <span aria-hidden="true">→</span></a></section>
-      <section class="practice-card"><p class="eyebrow">TRY THIS NOW</p><div class="sample-dialog"><span class="bubble incoming">I had a hard day.</span><span class="bubble outgoing">Would you like me to listen, or shall we think through what to do together?</span></div><h2>Less guessing</h2><p>One short question helps you practise this skill right away.</p><a class="btn outline" href="#practice/listening-3">Try it in one minute →</a></section>
-    </div><div class="stats"><div class="stat"><strong>${done} / ${lessons.length}</strong><span>lessons completed</span></div><div class="stat"><strong>${dueLessons().length}</strong><span>lessons due for review</span></div><div class="stat"><strong>${missions.filter(missionDone).length} / ${missions.length}</strong><span>real-life missions</span></div></div>`;
+function flow(meta, progress, body, back = '') {
+  const track = progress === null ? '' : '<div class="flow-track" role="progressbar" aria-label="Progress in this exercise" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + progress + '"><span class="flow-fill" style="width:' + progress + '%"></span></div>';
+  return '<section class="flow-screen">' +
+    (back ? '<a class="text-link flow-back" href="' + back + '">← Back</a>' : '') +
+    '<div class="flow-meta">' + esc(meta) + '</div>' + track +
+    '<div class="flow-card">' + body + '</div></section>';
 }
 
-function renderPath() {
-  const cards = modules.map((module, moduleIndex) => {
-    const items = lessons.filter((lesson) => lesson.moduleId === module.id);
-    const count = items.filter((lesson) => state.completed[lesson.id]).length;
-    return `<section class="card module-card" id="module-${esc(module.id)}"><div class="module-top"><span class="module-number">${String(moduleIndex + 1).padStart(2, '0')}</span><div class="module-copy"><h2>${esc(module.title)}</h2><p>${esc(module.description)}</p></div><span class="module-count">${count} / ${items.length}</span></div>${progressBar(count, items.length)}<div class="lesson-list">${items.map((lesson, index) => `<a class="lesson-link ${state.completed[lesson.id] ? 'done' : ''}" href="#lesson/${esc(lesson.id)}"><span class="lesson-index">${state.completed[lesson.id] ? '✓' : String(index + 1).padStart(2, '0')}</span><span>${esc(lesson.title)}</span><small>${lesson.minutes} min</small></a>`).join('')}</div></section>`;
-  }).join('');
-  const missionCards = missions.map((mission) => `<section class="card mission-card"><h2>${esc(mission.title)} ${missionDone(mission) ? '<span aria-label="Completed">✓</span>' : ''}</h2><p>${esc(mission.description)}</p><a class="btn outline" href="#mission/${esc(mission.id)}">${missionDone(mission) ? 'Open again' : 'Open mission'} →</a></section>`).join('');
-  return `${heading('LEARNING PATH · 8 STAGES', 'A path to clearer conversations.', '32 short lessons. Follow the path or start with a topic you need now.', `${completedCount()} / ${lessons.length} lessons`)}<div class="module-list">${cards}</div><div class="toolbar" style="margin-top:34px"><div><p class="eyebrow">USE IT IN REAL LIFE</p><h2>6 conversation missions</h2></div></div><div class="mission-list">${missionCards}</div>`;
+function primary(href, text) {
+  return '<a class="primary-button" href="' + href + '">' + esc(text) + ' <span aria-hidden="true">→</span></a>';
 }
 
-function renderQuiz(lesson, mode = 'lesson') {
-  const picked = mode === 'review' ? reviewAttempts[lesson.id] : state.answers[lesson.id];
-  const correct = lesson.quiz.correct.includes(picked);
-  const answered = Number.isInteger(picked);
-  return `<div class="quiz" data-quiz-panel="${esc(lesson.id)}"><p class="eyebrow">CHECK YOUR UNDERSTANDING</p><p class="quiz-prompt">${esc(lesson.quiz.prompt)}</p><div class="choices" role="group" aria-label="Answer choices">${lesson.quiz.choices.map((choice, index) => `<button type="button" class="choice ${answered && picked === index ? (correct ? 'correct' : 'wrong') : ''}" data-quiz-id="${esc(lesson.id)}" data-choice="${index}" data-mode="${mode}">${esc(choice)}</button>`).join('')}</div>${answered ? `<div class="feedback ${correct ? '' : 'error'}" role="status"><strong>${correct ? 'That works.' : 'Try again.'}</strong> ${esc(lesson.quiz.explanation)}</div>` : ''}</div>`;
+function renderHome() {
+  const done = doneCount();
+  const next = recommended();
+  if (state.guidedFlow) {
+    const step = state.guidedFlow.step;
+    return flow('YOUR NEXT STEP', null,
+      '<h1 class="flow-title" tabindex="-1">Pick up where you left off?</h1>' +
+      '<p class="flow-intro">' + (step < 3 ? 'Continue with question ' + (step + 1) + ' of 3.' : 'Your three questions are done. See your result and move on to the lessons.') + '</p>' +
+      '<div class="flow-actions">' + primary(step < 3 ? '#guided/' + step : '#guided-done', 'Continue') + '</div>' +
+      '<a class="text-link" href="#start">Choose another topic</a>');
+  }
+  if (!next) {
+    return flow('PATH COMPLETE', null,
+      '<h1 class="flow-title" tabindex="-1">You have completed every lesson.</h1>' +
+      '<p class="flow-intro">These skills grow through conversation. Come back to a situation whenever you need it.</p>' +
+      '<div class="flow-actions">' + primary('#review', 'Review a skill') + '</div>' +
+      '<a class="text-link" href="#path">Full learning path</a>');
+  }
+  if (done === 0) {
+    return flow('ONE SITUATION · A FEW MINUTES', null,
+      '<h1 class="flow-title" tabindex="-1">Start with one question.</h1>' +
+      '<p class="flow-intro">Choose a relationship situation, answer a question, and get a short explanation.</p>' +
+      '<div class="flow-actions">' + primary('#start', 'Start') + '</div>');
+  }
+  return flow('YOUR NEXT STEP', null,
+    '<h1 class="flow-title" tabindex="-1">' + esc(next.title) + '</h1>' +
+    '<p class="flow-intro">One idea, one question, and a short explanation.</p>' +
+    '<div class="flow-actions">' + primary('#lesson/' + esc(next.id), 'Continue') + '</div>' +
+    '<a class="text-link" href="#start">Choose another topic</a>');
+}
+
+function renderTopics() {
+  const options = [
+    ['listening', 'I do not feel heard'],
+    ['conflict', 'Conversations turn into arguments'],
+    ['needs', 'I struggle to say what I need'],
+  ];
+  const body = '<h1 class="flow-title" tabindex="-1" id="topic-question">What would you like to improve?</h1>' +
+    '<p class="flow-intro">Choose what feels closest. You can change topics later.</p>' +
+    '<div class="topic-list" role="group" aria-labelledby="topic-question">' +
+    options.map(([id, label]) => '<button type="button" class="topic-option" data-topic="' + id + '">' + esc(label) + ' <span aria-hidden="true">→</span></button>').join('') +
+    '</div>';
+  return flow('STEP 1 · CHOOSE A TOPIC', 0, body, '#today');
+}
+
+function resultDetails(lesson) {
+  const draft = draftFor(lesson.id);
+  return '<details class="note-disclosure"><summary>Example and your note</summary>' +
+    '<p class="example-text">' + esc(lesson.example) + '</p>' +
+    '<button type="button" class="secondary-button" data-copy-example="' + esc(lesson.id) + '">Copy example</button>' +
+    '<label for="note-' + esc(lesson.id) + '">How might you use this?</label>' +
+    '<textarea id="note-' + esc(lesson.id) + '" data-note-id="' + esc(lesson.id) + '" maxlength="2000" rows="3" placeholder="Write your own phrase if you like">' + esc(draft.value) + '</textarea>' +
+    '<p class="fine-print">Your note is saved only in this browser.</p>' +
+    '<p class="fine-print" data-note-status="' + esc(lesson.id) + '" role="status">' + esc(draft.status) + '</p>' +
+    '<button type="button" class="secondary-button" data-save-note="' + esc(lesson.id) + '">Retry saving</button></details>';
+}
+
+function questionScreen(lesson, mode, meta, progress, completedProgress, back, continueHtml) {
+  const key = mode + ':' + lesson.id;
+  const picked = attempts[key];
+  if (Number.isInteger(picked)) {
+    const correct = lesson.quiz.correct.includes(picked);
+    if (!correct) {
+      const body = '<p class="eyebrow">A QUICK EXPLANATION</p>' +
+        '<h1 class="flow-title" tabindex="-1">Try another answer.</h1>' +
+        '<p class="flow-intro">' + esc(lesson.principle) + '</p>' +
+        '<div class="result bad">You chose: ' + esc(lesson.quiz.choices[picked]) + '</div>' +
+        '<div class="flow-actions"><button type="button" class="primary-button" data-retry="' + esc(lesson.id) + '" data-mode="' + mode + '">Choose another answer →</button></div>';
+      return flow(meta, progress, body, back);
+    }
+    const body = '<p class="eyebrow">A QUICK EXPLANATION</p>' +
+      '<h1 class="flow-title" tabindex="-1">Yes, that is clearer.</h1>' +
+      '<div class="result good"><strong>' + esc(lesson.quiz.choices[picked]) + '</strong><p>' + esc(lesson.quiz.explanation) + '</p></div>' +
+      resultDetails(lesson) +
+      '<div class="flow-actions">' + continueHtml + '</div>';
+    return flow(meta, completedProgress, body, back);
+  }
+  const body = '<p class="eyebrow">' + esc(lesson.title) + '</p>' +
+    '<h1 class="flow-title" tabindex="-1" id="question-' + esc(lesson.id) + '">' + esc(lesson.quiz.prompt) + '</h1>' +
+    '<div class="answer-list" role="group" aria-labelledby="question-' + esc(lesson.id) + '">' +
+    lesson.quiz.choices.map((choice, index) => '<button type="button" class="answer-option" data-answer-id="' + esc(lesson.id) + '" data-choice="' + index + '" data-mode="' + mode + '">' + esc(choice) + '</button>').join('') +
+    '</div>';
+  return flow(meta, progress, body, back);
+}
+
+function renderGuided(index) {
+  const active = state.guidedFlow;
+  const ids = guided[active?.topic];
+  if (!ids) return renderTopics();
+  if (index > active.step) {
+    location.hash = '#guided/' + active.step;
+    return renderGuided(active.step);
+  }
+  if (index < active.step && !Number.isInteger(attempts['guided:' + ids[index]])) {
+    location.hash = active.step === 3 ? '#guided-done' : '#guided/' + active.step;
+    return active.step === 3 ? renderGuidedDone() : renderGuided(active.step);
+  }
+  const lesson = byLesson.get(ids[index]);
+  const next = index < ids.length - 1
+    ? primary('#guided/' + (index + 1), 'Next question')
+    : primary('#guided-done', 'See your result');
+  const back = index && Number.isInteger(attempts['guided:' + ids[index - 1]]) ? '#guided/' + (index - 1) : '#start';
+  return questionScreen(lesson, 'guided', 'QUESTION ' + (index + 1) + ' OF 3', Math.round((index / 3) * 100), Math.round(((index + 1) / 3) * 100), back, next);
+}
+
+function renderGuidedDone() {
+  if (!state.guidedFlow) return renderTopics();
+  if (state.guidedFlow.step < 3) {
+    location.hash = '#guided/' + state.guidedFlow.step;
+    return renderGuided(state.guidedFlow.step);
+  }
+  const module = modules.find((item) => item.id === state.guidedFlow.topic);
+  if (!module) return renderTopics();
+  const next = lessons.find((item) => item.moduleId === module.id && !state.completed[item.id]) || recommended();
+  return flow('THREE QUESTIONS COMPLETE', 100,
+    '<h1 class="flow-title" tabindex="-1">Continue with “' + esc(module.title) + '”.</h1>' +
+    '<p class="flow-intro">You have tried a few situations. Next comes a short lesson and one more question.</p>' +
+    '<div class="flow-actions">' + primary(next ? '#lesson/' + esc(next.id) : '#review', next ? 'Continue this topic' : 'Review a skill') + '</div>' +
+    '<a class="text-link" href="#path">All topics and lessons</a>');
 }
 
 function renderLesson(lesson) {
-  noteBaseline = state.notes[lesson.id] || '';
-  const index = lessons.indexOf(lesson);
-  const module = modules.find((item) => item.id === lesson.moduleId);
-  const next = lessons[index + 1];
-  return `<a class="back-link" href="#path">← Back to learning path</a>${heading(`LESSON ${index + 1} / ${lessons.length} · ${module.title.toUpperCase()}`, lesson.title, lesson.summary, `${lesson.minutes} minutes`)}<div class="lesson-layout"><article class="card reading"><h2>Understand the idea</h2><p class="intro">${esc(lesson.summary)}</p><div class="content-block"><h3>Main idea</h3><p>${esc(lesson.principle)}</p></div><div class="content-block"><h3>What it sounds like</h3><div class="example">${esc(lesson.example)}</div></div><div class="content-block"><h3>Try it in real life</h3><p>${esc(lesson.action)}</p></div>${next ? `<a class="btn outline next-link" href="#lesson/${esc(next.id)}">Next lesson →</a>` : `<a class="btn outline next-link" href="#path">Full learning path →</a>`}</article><aside class="card exercise-panel">${renderQuiz(lesson)}<div class="note-box"><label for="reflection">Your own phrase or observation</label><p>Write down how you might use the skill. Your note stays in this browser and is included if you export your progress.</p><textarea id="reflection" class="note-input" maxlength="2000" placeholder="For example: I will ask whether they want advice first…">${esc(state.notes[lesson.id] || '')}</textarea><button type="button" class="btn dark" data-save-note="${esc(lesson.id)}">Save note</button></div></aside></div>`;
+  const phase = phases[lesson.id] || 'idea';
+  if (phase === 'idea') {
+    const body = '<p class="eyebrow">' + esc(moduleOf(lesson).title) + '</p>' +
+      '<h1 class="flow-title" tabindex="-1">' + esc(lesson.title) + '</h1>' +
+      '<p class="flow-intro">' + esc(lesson.principle) + '</p>' +
+      '<div class="flow-actions"><button type="button" class="primary-button" data-open-question="' + esc(lesson.id) + '">Go to question <span aria-hidden="true">→</span></button></div>';
+    return flow('STEP 1 OF 2 · ' + lesson.minutes + ' MIN', 0, body, '#path');
+  }
+  const next = nextAfter(lesson);
+  const more = primary(next ? '#lesson/' + esc(next.id) : '#progress', next ? 'Next lesson' : 'View progress');
+  return questionScreen(lesson, 'lesson', 'STEP 2 OF 2', 50, 100, '#path', more);
 }
 
-function renderPracticeList() {
-  const displayed = filter === 'all' ? lessons : lessons.filter((lesson) => lesson.moduleId === filter);
-  return `${heading('PRACTICE · 32 QUESTIONS', 'Choose a situation and try responding.', 'Each answer comes with an explanation. You can try again right away.', `${displayed.length} questions`)}<div class="toolbar"><div class="filters" aria-label="Practice topics"><button type="button" class="filter-btn ${filter === 'all' ? 'active' : ''}" data-filter="all">All</button>${modules.map((module) => `<button type="button" class="filter-btn ${filter === module.id ? 'active' : ''}" data-filter="${esc(module.id)}">${esc(module.title)}</button>`).join('')}</div><a class="btn outline" href="#missions">6 real-life missions →</a></div><div class="practice-list">${displayed.map((lesson) => { const module = modules.find((item) => item.id === lesson.moduleId); return `<section class="card practice-item"><p class="eyebrow">${esc(module.title)}</p><h2>${esc(lesson.title)}</h2><p>${esc(lesson.quiz.prompt)}</p><a class="btn outline" href="#practice/${esc(lesson.id)}">Try this situation →</a></section>`; }).join('')}</div>`;
+function renderPractice(id) {
+  const lesson = (id && byLesson.get(id)) || recommended() || lessons[0];
+  const next = lessons[(lessons.indexOf(lesson) + 1) % lessons.length];
+  return questionScreen(lesson, 'practice', 'ONE SITUATION', null, null, '#today', primary('#practice/' + esc(next.id), 'Next situation'));
 }
 
-function renderPracticeItem(lesson) {
-  const index = lessons.indexOf(lesson);
-  const next = lessons[(index + 1) % lessons.length];
-  const module = modules.find((item) => item.id === lesson.moduleId);
-  return `<a class="back-link" href="#practice">← All situations</a>${heading(`PRACTICE · ${module.title.toUpperCase()}`, lesson.title, lesson.summary)}<div class="practice-layout"><section class="card exercise-panel">${renderQuiz(lesson, 'practice')}</section><aside class="card side-panel"><h2>Take it one step further</h2><p>${esc(lesson.action)}</p><div class="phrase-example"><p class="eyebrow">EXAMPLE TO CONSIDER</p><blockquote>${esc(lesson.example)}</blockquote><button type="button" class="btn outline" data-copy-example="${esc(lesson.id)}">Copy example</button></div><div class="actions"><a class="btn outline" href="#lesson/${esc(lesson.id)}">Read lesson →</a><a class="btn outline" href="#practice/${esc(next.id)}">Next situation →</a></div></aside></div>`;
+function renderReview() {
+  if (!reviewQueue) {
+    for (const key of Object.keys(attempts)) if (key.startsWith('review:')) delete attempts[key];
+    const due = dueLessons();
+    const completed = lessons.filter((item) => state.completed[item.id]);
+    reviewQueue = (due.length ? due : completed).slice(0, 4).map((item) => item.id);
+    reviewPosition = 0;
+  }
+  if (!reviewQueue.length) {
+    return flow('REVIEW', null,
+      '<h1 class="flow-title" tabindex="-1">Complete a lesson first.</h1>' +
+      '<p class="flow-intro">Then you will have a question to come back to here.</p>' +
+      '<div class="flow-actions">' + primary('#today', 'Get started') + '</div>');
+  }
+  if (reviewPosition >= reviewQueue.length) {
+    return flow('REVIEW COMPLETE', 100,
+      '<h1 class="flow-title" tabindex="-1">You have refreshed these skills.</h1>' +
+      '<p class="flow-intro">Try using one in your next conversation.</p>' +
+      '<div class="flow-actions">' + primary('#today', 'Go to the next step') + '</div>');
+  }
+  const lesson = byLesson.get(reviewQueue[reviewPosition]);
+  const nextButton = '<button type="button" class="primary-button" data-next-review>Next question <span aria-hidden="true">→</span></button>';
+  return questionScreen(lesson, 'review', 'QUESTION ' + (reviewPosition + 1) + ' OF ' + reviewQueue.length,
+    Math.round((reviewPosition / reviewQueue.length) * 100), Math.round(((reviewPosition + 1) / reviewQueue.length) * 100), '#today', nextButton);
+}
+
+function renderPath(selectedId) {
+  const next = recommended();
+  const intro = '<div class="section-page"><p class="eyebrow">LEARNING PATH</p><h1 tabindex="-1">Choose a topic.</h1>' +
+    '<p class="flow-intro">Go in order or open what you need today.</p>' +
+    (next ? '<div class="flow-actions">' + primary('#lesson/' + esc(next.id), 'Continue your current step') + '</div>' : '');
+  const list = modules.map((module) => {
+    const items = lessons.filter((item) => item.moduleId === module.id);
+    const count = items.filter((item) => state.completed[item.id]).length;
+    return '<details class="accordion"' + (module.id === selectedId ? ' open' : '') + '><summary><span>' + esc(module.title) + '</span><small>' + count + ' of ' + items.length + '</small></summary>' +
+      '<p>' + esc(module.description) + '</p><div class="lesson-list">' +
+      items.map((lesson) => '<a href="#lesson/' + esc(lesson.id) + '">' + esc(lesson.title) + (state.completed[lesson.id] ? ' <span aria-label="Completed">✓</span>' : '') + '</a>').join('') +
+      '</div></details>';
+  }).join('');
+  return intro + '<div class="accordion-list">' + list + '</div><a class="text-link" href="#missions">6 real-life missions</a></div>';
 }
 
 function renderMissions() {
-  return `<a class="back-link" href="#practice">← Back to practice</a>${heading('REAL-LIFE PRACTICE', 'Six conversations you can try.', 'These are small steps, not a test. Try only what is safe and appropriate for you.', `${missions.filter(missionDone).length} / ${missions.length} completed`)}<div class="mission-list">${missions.map((mission) => `<section class="card mission-card"><p class="eyebrow">${missionDone(mission) ? 'COMPLETED' : 'MISSION'}</p><h2>${esc(mission.title)}</h2><p>${esc(mission.description)}</p><a class="btn outline" href="#mission/${esc(mission.id)}">Open →</a></section>`).join('')}</div>`;
+  const first = missions.find((item) => !missionDone(item)) || missions[0];
+  const others = missions.filter((item) => item.id !== first.id);
+  return '<div class="section-page"><p class="eyebrow">REAL-LIFE PRACTICE</p><h1 tabindex="-1">Try one small step.</h1>' +
+    '<div class="flow-card"><h2>' + esc(first.title) + '</h2><p class="flow-intro">' + esc(first.description) + '</p>' +
+    '<div class="flow-actions">' + primary('#mission/' + esc(first.id), missionDone(first) ? 'Open again' : 'Start mission') + '</div></div>' +
+    '<details class="accordion"><summary>Other missions</summary><div class="lesson-list">' +
+    others.map((item) => '<a href="#mission/' + esc(item.id) + '">' + esc(item.title) + '</a>').join('') +
+    '</div></details></div>';
 }
 
 function renderMission(mission) {
   const steps = state.missionSteps[mission.id] || [];
-  return `<a class="back-link" href="#missions">← Back to missions</a>${heading('REAL-LIFE PRACTICE', mission.title, mission.description)}<section class="card mission-panel"><div class="notice">Try this mission only if you choose to and it feels safe. If you face pressure, threats, or fear, you can stop; focus on your safety and seek support.</div><h2>Three steps</h2><div class="checklist">${mission.steps.map((step, index) => `<label class="check-row"><input type="checkbox" data-mission="${esc(mission.id)}" data-step="${index}" ${steps[index] ? 'checked' : ''}><span>${esc(step)}</span></label>`).join('')}</div><p data-mission-status class="${missionDone(mission) ? 'success-line' : 'subtle'}">${missionDone(mission) ? 'Mission marked complete ✓' : 'Check off steps as you go. Progress is saved on this device.'}</p></section>`;
-}
-
-function renderReview() {
-  const due = dueLessons();
-  const completed = lessons.filter((lesson) => state.completed[lesson.id]);
-  if (!reviewSessionIds) reviewSessionIds = (due.length ? due : completed).slice(0, 4).map((lesson) => lesson.id);
-  const shown = reviewSessionIds.map((id) => lessonById.get(id)).filter(Boolean);
-  if (!shown.length) return `${heading('REVIEW', 'Make the learning stick.', 'Review questions will appear here once you complete your first lesson.')}<div class="card empty-state"><h2>No completed lessons yet</h2><p>Start with a short lesson. After a correct answer, you can come back to review it later.</p><a class="btn peach" href="#lesson/${esc(lessons[0].id)}">Start the first lesson →</a></div>`;
-  return `${heading('REVIEW', due.length ? 'Time to revisit these skills.' : 'Nothing due for review right now.', due.length ? 'Try answering without a hint. A correct answer will schedule the question again in a few days.' : 'You can still practise with lessons you have completed.', `${due.length} due for review`)}<div class="review-list">${shown.map((lesson) => `<section class="card review-card"><h2>${esc(lesson.title)}</h2><p>${esc(lesson.summary)}</p>${renderQuiz(lesson, 'review')}</section>`).join('')}</div>`;
+  const index = mission.steps.findIndex((_, step) => !steps[step]);
+  if (index < 0) {
+    return flow('MISSION COMPLETE', 100,
+      '<h1 class="flow-title" tabindex="-1">' + esc(mission.title) + '</h1>' +
+      '<p class="flow-intro">You have marked all three steps. Return to this conversation whenever you need to.</p>' +
+      '<div class="flow-actions">' + primary('#missions', 'More missions') + '</div>');
+  }
+  const body = '<p class="eyebrow">' + esc(mission.title) + '</p>' +
+    '<h1 class="flow-title" tabindex="-1">' + esc(mission.steps[index]) + '</h1>' +
+    '<p class="fine-print">Try this only if it feels safe and appropriate. If you face pressure, threats, or fear, stop and seek support you trust.</p>' +
+    '<div class="flow-actions"><button type="button" class="primary-button" data-mission-complete="' + esc(mission.id) + '" data-step="' + index + '">Mark this step done <span aria-hidden="true">→</span></button></div>' +
+    (index > 0 ? '<button type="button" class="text-link as-button" data-mission-undo="' + esc(mission.id) + '" data-step="' + (index - 1) + '">Go back one step</button>' : '');
+  return flow('STEP ' + (index + 1) + ' OF ' + mission.steps.length, Math.round((index / mission.steps.length) * 100), body, '#missions');
 }
 
 function renderProgress() {
-  const done = completedCount();
-  const missionCount = missions.filter(missionDone).length;
-  return `${heading('PROGRESS', 'See how far you have come.', 'A lesson counts as complete after a correct answer. Your notes and checkmarks stay in this browser.', `${Math.round(100 * done / lessons.length)}% of path`)}<div class="progress-summary"><div class="card"><strong>${done} / ${lessons.length}</strong><span>lessons</span></div><div class="card"><strong>${modules.filter((module) => lessons.filter((lesson) => lesson.moduleId === module.id).every((lesson) => state.completed[lesson.id])).length} / ${modules.length}</strong><span>stages</span></div><div class="card"><strong>${missionCount} / ${missions.length}</strong><span>real-life missions</span></div></div><div class="module-list">${modules.map((module) => { const items = lessons.filter((lesson) => lesson.moduleId === module.id); const count = items.filter((lesson) => state.completed[lesson.id]).length; return `<section class="card module-card"><div class="module-top"><div class="module-copy"><h2>${esc(module.title)}</h2><p>${count} of ${items.length} lessons</p></div><a class="btn outline" href="#module/${esc(module.id)}">Open →</a></div>${progressBar(count, items.length)}</section>`; }).join('')}</div><section class="card progress-controls" style="margin-top:18px"><h2>Move your progress</h2><p>Download a file with your progress and notes, then upload it on another device. Keep the file private if your notes contain personal details.</p><div class="actions"><button type="button" class="btn dark" data-export>Download progress</button><label class="btn outline import-label">Upload file<input type="file" accept="application/json,.json" data-import aria-label="Upload progress file"></label></div></section>`;
+  const done = doneCount();
+  const percent = Math.round((done / lessons.length) * 100);
+  const next = recommended();
+  const detail = modules.map((module) => {
+    const items = lessons.filter((item) => item.moduleId === module.id);
+    const count = items.filter((item) => state.completed[item.id]).length;
+    return '<div class="progress-row"><span>' + esc(module.title) + '</span><strong>' + count + ' / ' + items.length + '</strong></div>';
+  }).join('');
+  return '<div class="section-page"><p class="eyebrow">YOUR PROGRESS</p><h1 tabindex="-1">' + done + ' of ' + lessons.length + ' lessons.</h1>' +
+    '<div class="flow-track" role="progressbar" aria-label="Completed lessons" aria-valuemin="0" aria-valuemax="' + lessons.length + '" aria-valuenow="' + done + '"><span class="flow-fill" style="width:' + percent + '%"></span></div>' +
+    '<p class="flow-intro">Completed lessons are shown here. Reviewing helps you remember the answers.</p>' +
+    '<div class="flow-actions">' + primary(next ? '#lesson/' + esc(next.id) : '#review', next ? 'Continue' : 'Review') + '</div>' +
+    '<details class="accordion"><summary>Progress by topic</summary>' + detail + '</details>' +
+    '<details class="accordion"><summary>Move your progress</summary><p>This file contains your progress and personal notes. Keep it private.</p>' +
+    '<div class="transfer-actions"><button type="button" class="secondary-button" data-export>Download file</button>' +
+    '<label class="secondary-button import-label">Upload file<input type="file" accept="application/json,.json" data-import aria-label="Upload progress file"></label></div></details></div>';
 }
 
 function renderAbout() {
-  return `${heading('ABOUT THE APPROACH', 'Differences are a reason to ask, not to assume.', 'Conversation practice for women and men who want to understand each other better.')}<article class="card about-copy"><h2>Where the idea comes from</h2><p>The “Mars and Venus” metaphor from John Gray’s books is a reminder that two people can experience stress and ask for support in different ways. Here it is a starting point for questions, not a rule about how women or men should behave.</p><p>This is an independent educational practice tool. Its lessons and exercises were written for this site; they are neither a retelling of the books nor an official course by the author.</p><h2>How to use it</h2><ul><li>Take a short lesson and check your answer.</li><li>Write your own phrase if you want to use a skill in conversation.</li><li>Come back to review and try one mission in real life.</li></ul><div class="notice">If your relationship involves pressure, threats, or fear, practising together may be inappropriate. Put your safety first and seek support from people or services you trust.</div><h2>Sources and influences</h2><ul class="source-list"><li><a href="https://www.marsvenus.com/books" target="_blank" rel="noopener noreferrer">John Gray’s books</a> — inspiration for the metaphor and relationship themes; not evidence of universal gender differences.</li><li><a href="https://www.gottman.com/about/the-gottman-method/" target="_blank" rel="noopener noreferrer">The Gottman Method</a> — attention to connection, conflict, and repair.</li><li><a href="https://www.nonviolentcommunication.com/pdf_files/nvc2-chapter-one.html" target="_blank" rel="noopener noreferrer">Nonviolent Communication</a> — observations, feelings, needs, and requests.</li><li><a href="https://www.purdue.edu/uns/html4ever/2004/040217.MacGeorge.sexroles.html" target="_blank" rel="noopener noreferrer">Purdue University research</a> — similarities in preferences for supportive communication.</li></ul></article>`;
+  return '<div class="section-page"><p class="eyebrow">ABOUT THE APPROACH</p><h1 tabindex="-1">Less guessing. More questions.</h1>' +
+    '<p class="flow-intro">The “Mars and Venus” metaphor reminds us that people may ask for support in different ways. The useful skill is to ask this person what they need, without drawing conclusions from their gender.</p>' +
+    '<p class="flow-intro">This is an independent educational practice tool with original exercises, not a retelling of the books or an official course.</p>' +
+    '<details class="accordion"><summary>Sources and influences</summary><ul class="source-list">' +
+    '<li><a href="https://www.marsvenus.com/books" target="_blank" rel="noopener noreferrer">John Gray’s books</a> — inspiration for the metaphor and themes.</li>' +
+    '<li><a href="https://www.gottman.com/about/the-gottman-method/" target="_blank" rel="noopener noreferrer">The Gottman Method</a> — connection, conflict and repair.</li>' +
+    '<li><a href="https://www.nonviolentcommunication.com/pdf_files/nvc2-chapter-one.html" target="_blank" rel="noopener noreferrer">Nonviolent Communication</a> — observation, feelings, needs and requests.</li>' +
+    '<li><a href="https://www.purdue.edu/uns/html4ever/2004/040217.MacGeorge.sexroles.html" target="_blank" rel="noopener noreferrer">Purdue University research</a> — similarities in preferences for supportive communication.</li></ul></details>' +
+    '<p class="fine-print">If your relationship involves pressure, threats or fear, practising together may be inappropriate. Put your safety first and seek support from people or services you trust.</p></div>';
 }
 
 function route() {
-  const parts = (location.hash.slice(1) || 'today').split('/');
-  const [name, id] = parts;
-  if (name === 'lesson' && lessonById.has(id)) return { name, id };
-  if (name === 'mission' && missionById.has(id)) return { name, id };
-  if (name === 'practice' && id && lessonById.has(id)) return { name: 'practice-item', id };
-  if (name === 'module' && modules.some((module) => module.id === id)) return { name: 'path', id };
-  if (['today', 'path', 'practice', 'missions', 'review', 'progress', 'about'].includes(name)) return { name };
+  const [name, id] = (location.hash.slice(1) || 'today').split('/');
+  if (name === 'lesson' && byLesson.has(id)) return { name, id };
+  if (name === 'mission' && byMission.has(id)) return { name, id };
+  if (name === 'guided' && ['0', '1', '2'].includes(id)) return { name, index: Number(id) };
+  if (name === 'practice' && id && byLesson.has(id)) return { name, id };
+  if (name === 'module' && modules.some((item) => item.id === id)) return { name: 'path', id };
+  if (['today', 'start', 'guided-done', 'path', 'practice', 'review', 'missions', 'progress', 'about'].includes(name)) return { name };
   return { name: 'today' };
 }
 
-function render() {
+function render(focusHeading = false) {
   const current = route();
-  document.querySelector('#language-link').href = `index.html${location.hash}`;
-  if (current.name !== 'review') { reviewSessionIds = null; reviewAttempts = {}; }
-  const labels = { today: 'Today', path: 'Learning path', lesson: 'Lesson', practice: 'Practice', 'practice-item': 'Practice', missions: 'Real-life missions', mission: 'Mission', review: 'Review', progress: 'Progress', about: 'About' };
-  document.querySelector('#breadcrumb').textContent = `Conversation Orbits / ${labels[current.name]}`;
+  const routeKey = location.hash || '#today';
+  if (current.name === 'practice' && routeKey !== lastRoute) {
+    const id = current.id || recommended()?.id || lessons[0].id;
+    delete attempts['practice:' + id];
+  }
+  lastRoute = routeKey;
+  if (current.name !== 'review') { reviewQueue = null; reviewPosition = 0; }
+  const nav = ['start', 'guided', 'guided-done', 'lesson'].includes(current.name) ? 'today' : current.name === 'mission' ? 'missions' : current.name;
   document.querySelectorAll('[data-nav]').forEach((link) => {
-    const nav = current.name === 'lesson' ? 'path' : ['practice-item', 'missions', 'mission'].includes(current.name) ? 'practice' : current.name;
-    const active = link.dataset.nav === nav;
-    link.classList.toggle('active', active);
-    if (active) link.setAttribute('aria-current', 'page'); else link.removeAttribute('aria-current');
+    if (link.dataset.nav === nav) link.setAttribute('aria-current', 'page');
+    else link.removeAttribute('aria-current');
   });
+  const progress = document.querySelector('#header-progress');
+  if (progress) progress.textContent = doneCount() ? 'Completed: ' + doneCount() : 'Ready to begin';
   const badge = document.querySelector('#review-badge');
-  badge.textContent = dueLessons().length;
-  badge.hidden = !dueLessons().length;
-  const views = { today: renderToday, path: renderPath, practice: renderPracticeList, missions: renderMissions, review: renderReview, progress: renderProgress, about: renderAbout };
-  main.innerHTML = current.name === 'lesson' ? renderLesson(lessonById.get(current.id)) : current.name === 'practice-item' ? renderPracticeItem(lessonById.get(current.id)) : current.name === 'mission' ? renderMission(missionById.get(current.id)) : views[current.name]();
-  if (current.id && current.name === 'path') document.querySelector(`#module-${current.id}`)?.scrollIntoView();
-  else window.scrollTo({ top: 0, behavior: 'auto' });
+  if (badge) {
+    badge.textContent = dueLessons().length;
+    badge.hidden = dueLessons().length === 0;
+  }
+  const languageLink = document.querySelector('#language-link');
+  if (languageLink) languageLink.href = 'index.html' + (location.hash || '');
+  if (menu) menu.open = false;
+  let html;
+  switch (current.name) {
+    case 'today': html = renderHome(); break;
+    case 'start': html = renderTopics(); break;
+    case 'guided': html = renderGuided(current.index); break;
+    case 'guided-done': html = renderGuidedDone(); break;
+    case 'lesson': html = renderLesson(byLesson.get(current.id)); break;
+    case 'practice': html = renderPractice(current.id); break;
+    case 'review': html = renderReview(); break;
+    case 'path': html = renderPath(current.id); break;
+    case 'missions': html = renderMissions(); break;
+    case 'mission': html = renderMission(byMission.get(current.id)); break;
+    case 'progress': html = renderProgress(); break;
+    case 'about': html = renderAbout(); break;
+    default: html = renderHome();
+  }
+  main.innerHTML = html;
+  window.scrollTo({ top: 0, behavior: 'auto' });
+  if (focusHeading) main.querySelector('h1')?.focus({ preventScroll: true });
+}
+
+async function navigate(focusHeading = true) {
+  const hash = location.hash;
+  const current = route();
+  if (current.name === 'lesson' && (state.currentLessonId !== current.id ||
+    state.focusModule !== byLesson.get(current.id).moduleId || state.guidedFlow)) {
+    await commit(() => store.selectLesson(current.id));
+  }
+  if (location.hash === hash) render(focusHeading);
 }
 
 async function chooseAnswer(id, choice, mode) {
-  const lesson = lessonById.get(id);
-  if (!lesson || !Number.isInteger(choice) || choice < 0 || choice >= lesson.quiz.choices.length) return;
-  const message = lesson.quiz.correct.includes(choice) ? 'Correct — lesson saved to progress' : '';
-  if (!await commit(() => store.answer(id, choice, mode), message)) return;
-  if (mode === 'review') reviewAttempts[id] = choice;
-  const panel = [...main.querySelectorAll('[data-quiz-panel]')].find((item) => item.dataset.quizPanel === id);
-  if (panel) {
-    panel.outerHTML = renderQuiz(lesson, mode);
-    [...main.querySelectorAll('[data-quiz-id]')].find((item) => item.dataset.quizId === id && Number(item.dataset.choice) === choice)?.focus({ preventScroll: true });
-  }
-  const badge = document.querySelector('#review-badge');
-  badge.textContent = dueLessons().length;
-  badge.hidden = !dueLessons().length;
+  const lesson = byLesson.get(id);
+  if (!lesson || !['guided', 'lesson', 'practice', 'review'].includes(mode) ||
+      !Number.isInteger(choice) || choice < 0 || choice >= lesson.quiz.choices.length) return;
+  const hash = location.hash;
+  if (lesson.quiz.correct.includes(choice) && !await commit(() => store.answer(id, choice, mode))) return;
+  attempts[mode + ':' + id] = choice;
+  if (location.hash === hash) render(true);
 }
 
 main.addEventListener('click', async (event) => {
-  const quizButton = event.target.closest('[data-quiz-id]');
-  if (quizButton) { await chooseAnswer(quizButton.dataset.quizId, Number(quizButton.dataset.choice), quizButton.dataset.mode); return; }
-  const copyButton = event.target.closest('[data-copy-example]');
-  if (copyButton) {
-    const example = lessonById.get(copyButton.dataset.copyExample)?.example;
+  const target = event.target.closest('button');
+  if (!target) return;
+  if (target.dataset.saveNote && byLesson.has(target.dataset.saveNote)) {
+    await saveNote(target.dataset.saveNote, draftFor(target.dataset.saveNote).value);
+    return;
+  }
+  if (target.dataset.copyExample) {
+    const example = byLesson.get(target.dataset.copyExample)?.example;
     if (!example) return;
-    try { await navigator.clipboard.writeText(example); showToast('Example copied'); }
-    catch { showToast('Could not copy the example'); }
+    navigator.clipboard.writeText(example)
+      .then(() => announce('Example copied'))
+      .catch(() => announce('Could not copy the example'));
     return;
   }
-  const filterButton = event.target.closest('[data-filter]');
-  if (filterButton) { filter = filterButton.dataset.filter; render(); return; }
-  const noteButton = event.target.closest('[data-save-note]');
-  if (noteButton) {
-    const input = main.querySelector('#reflection');
-    if (!input) return;
-    const id = noteButton.dataset.saveNote;
-    const value = input.value.slice(0, 2000);
-    const expected = noteBaseline;
-    if (await commit(() => store.saveNote(id, value, expected), 'Note saved on this device')) {
-      // Do not overwrite text typed while the save was waiting for its lock.
-      if (main.querySelector('#reflection') === input) noteBaseline = value;
-    }
+  if (target.dataset.topic && guided[target.dataset.topic]) {
+    if (!await commit(() => store.startGuided(target.dataset.topic))) return;
+    for (const key of Object.keys(attempts)) if (key.startsWith('guided:')) delete attempts[key];
+    location.hash = state.guidedFlow.step === 3 ? '#guided-done' : '#guided/' + state.guidedFlow.step;
     return;
   }
-  if (event.target.closest('[data-export]')) {
+  if (target.dataset.openQuestion) {
+    phases[target.dataset.openQuestion] = 'question';
+    render(true);
+    return;
+  }
+  if (target.dataset.answerId) {
+    await chooseAnswer(target.dataset.answerId, Number(target.dataset.choice), target.dataset.mode);
+    return;
+  }
+  if (target.dataset.retry) {
+    delete attempts[target.dataset.mode + ':' + target.dataset.retry];
+    render(true);
+    return;
+  }
+  if (target.hasAttribute('data-next-review')) {
+    reviewPosition += 1;
+    render(true);
+    return;
+  }
+  if (target.dataset.missionComplete) {
+    const mission = byMission.get(target.dataset.missionComplete);
+    const index = Number(target.dataset.step);
+    if (!mission || !Number.isInteger(index) || index < 0 || index >= mission.steps.length) return;
+    if (!await commit(() => store.setMissionStep(mission.id, index, true))) return;
+    render(true);
+    return;
+  }
+  if (target.dataset.missionUndo) {
+    const mission = byMission.get(target.dataset.missionUndo);
+    const index = Number(target.dataset.step);
+    if (!mission || !Number.isInteger(index) || index < 0 || index >= mission.steps.length) return;
+    if (!await commit(() => store.setMissionStep(mission.id, index, false))) return;
+    render(true);
+    return;
+  }
+  if (target.hasAttribute('data-export')) {
     let saved;
     try { saved = store.read(); } catch (error) { storageError(error); return; }
     const blob = new Blob([JSON.stringify({ version: 1, savedAt: new Date().toISOString(), ...saved }, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.href = url; link.download = 'orbity-obshcheniya-progress.json'; link.click();
+    link.href = url;
+    link.download = 'orbity-obshcheniya-progress.json';
+    link.click();
     setTimeout(() => URL.revokeObjectURL(url), 3000);
-    showToast('Progress file downloaded');
+    announce('Progress file downloaded');
   }
 });
 
+main.addEventListener('input', (event) => {
+  const id = event.target.dataset.noteId;
+  if (!byLesson.has(id)) return;
+  return saveNote(id, event.target.value.slice(0, 2000));
+});
+
 main.addEventListener('change', async (event) => {
-  const checkbox = event.target.closest('[data-mission]');
-  if (checkbox) {
-    const mission = missionById.get(checkbox.dataset.mission);
-    const index = Number(checkbox.dataset.step);
-    if (!mission || !Number.isInteger(index) || index < 0 || index >= mission.steps.length) return;
-    const checked = checkbox.checked;
-    if (!await commit(() => store.setMissionStep(mission.id, index, checked))) {
-      checkbox.checked = state.missionSteps[mission.id]?.[index] === true;
-      return;
-    }
-    if (route().name !== 'mission' || route().id !== mission.id) return;
-    const status = main.querySelector('[data-mission-status]');
-    if (!status) return;
-    const done = missionDone(mission);
-    status.className = done ? 'success-line' : 'subtle';
-    status.textContent = done ? 'Mission marked complete ✓' : 'Check off steps as you go. Progress is saved on this device.';
-    if (done) showToast('Mission completed');
-    return;
-  }
   const input = event.target.closest('[data-import]');
   if (!input?.files?.length) return;
   try {
@@ -263,29 +535,41 @@ main.addEventListener('change', async (event) => {
     try { parsed = JSON.parse(await file.text()); }
     catch { throw Object.assign(new Error(), { code: 'INVALID_FILE' }); }
     const imported = store.validateImport(parsed);
+    if (hasUnsavedNotes()) throw Object.assign(new Error(), { code: 'UNSAVED_NOTES' });
     const { token } = store.snapshot();
     if (!confirm('Replace current progress with the file’s data?')) return;
-    if (await commit(() => store.replace(imported, token), 'Progress imported')) render();
+    if (await commit(() => store.replace(imported, token), 'Progress imported')) {
+      drafts.clear();
+      for (const key of Object.keys(attempts)) delete attempts[key];
+      reviewQueue = null;
+      render(true);
+    }
   } catch (error) { storageError(error); }
   finally { input.value = ''; }
 });
 
-// Refresh saved progress without re-rendering over an unsaved note.
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && menu?.open) menu.open = false;
+});
+document.querySelector('.skip-link')?.addEventListener('click', (event) => {
+  event.preventDefault();
+  main.focus();
+});
 function refreshProgress() {
-  const input = main.querySelector('#reflection');
-  const dirty = input && input.value !== noteBaseline;
   try { state = store.read(); } catch (error) { storageError(error); return; }
-  if (!dirty) render();
-  else {
-    const badge = document.querySelector('#review-badge');
-    badge.textContent = dueLessons().length;
-    badge.hidden = !dueLessons().length;
+  for (const [id, draft] of drafts) {
+    if (!draft.pending && draft.value === draft.base) drafts.delete(id);
   }
+  // Never replace an editor containing pending or failed text with remote state.
+  if (!hasUnsavedNotes()) render();
 }
 window.addEventListener('storage', (event) => {
   if (event.key === PROGRESS_KEY || event.key === null) refreshProgress();
 });
 window.addEventListener('focus', refreshProgress);
-window.addEventListener('hashchange', render);
-render();
+window.addEventListener('beforeunload', (event) => {
+  if (hasUnsavedNotes()) { event.preventDefault(); event.returnValue = ''; }
+});
+window.addEventListener('hashchange', () => navigate(true));
+await navigate(false);
 if (initialLoadError) storageError(initialLoadError);

@@ -80,7 +80,7 @@ test('valid v1 export round-trips without dropping any saved fields', async () =
 test('32 concurrent edits from two stale tabs preserve all completed lessons', async () => {
   const f = fixture(); const a = f.make(); const b = f.make();
   a.read(); b.read();
-  await Promise.all(lessons.map((lesson, index) => (index % 2 ? a : b).answer(lesson.id, correct(lesson), 'practice', now)));
+  await Promise.all(lessons.map((lesson, index) => (index % 2 ? a : b).answer(lesson.id, correct(lesson), 'lesson', now)));
   assert.equal(Object.keys(a.read().completed).length, lessons.length);
   assert.equal(f.writes, lessons.length);
 });
@@ -156,4 +156,46 @@ test('bounded lock wait aborts without writing', async () => {
   } }) });
   await assert.rejects(store.answer(first.id, correct(first), 'lesson'), { code: 'LOCK_TIMEOUT' });
   assert.equal(f.writes, 0);
+});
+
+test('legacy five-map exports and new navigation metadata remain compatible', async () => {
+  const f = fixture(); const store = f.make();
+  const legacy = file();
+  delete legacy.focusModule; delete legacy.currentLessonId; delete legacy.guidedFlow;
+  assert.deepEqual(store.validateImport(legacy), emptyState());
+  await store.startGuided('listening');
+  await store.answer('listening-3', 1, 'guided', now);
+  const before = store.read();
+  assert.deepEqual(before.guidedFlow, { topic: 'listening', step: 1 });
+  assert.deepEqual(store.validateImport(file(before)), before);
+  assert.deepEqual(before.completed, {}, 'guided practice does not count as a full lesson');
+  await store.answer('listening-1', lessons.find((item) => item.id === 'listening-1').quiz.correct[0], 'practice', now);
+  assert.deepEqual(store.read().completed, {}, 'standalone practice does not count as a full lesson');
+});
+
+test('navigation writes preserve saved notes and completing a full lesson exits guided flow', async () => {
+  const f = fixture(); const a = f.make(); const b = f.make();
+  await a.startGuided('needs');
+  await b.saveNote(first.id, 'keep', '');
+  await a.selectLesson(first.id);
+  assert.equal(a.read().notes[first.id], 'keep');
+  assert.equal(a.read().guidedFlow, null);
+  assert.equal(a.read().currentLessonId, first.id);
+  await b.answer(first.id, correct(first), 'lesson', now);
+  assert.ok(a.read().completed[first.id]);
+});
+
+for (const [field, value] of [
+  ['focusModule', 'unknown'], ['currentLessonId', 'unknown'], ['guidedFlow', []],
+  ['guidedFlow', { topic: ['listening'], step: 0 }],
+  ['guidedFlow', { topic: 'listening', step: 4 }], ['guidedFlow', { topic: '__proto__', step: 0 }],
+]) test(`reject invalid navigation field ${field}: ${JSON.stringify(value)}`, () => {
+  assert.throws(() => fixture().make().validateImport({ ...file(), [field]: value }), { code: 'INVALID_FILE' });
+});
+
+test('stale guided answers cannot change a topic selected in another tab', async () => {
+  const f = fixture(); const a = f.make(); const b = f.make();
+  await a.startGuided('listening'); await b.startGuided('needs');
+  await assert.rejects(a.answer('listening-3', 1, 'guided', now), { code: 'FLOW_CONFLICT' });
+  assert.equal(a.read().guidedFlow.topic, 'needs');
 });

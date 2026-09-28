@@ -1,19 +1,25 @@
 // Shared by RU and EN. No cached whole-state writes: every edit reads the latest
 // snapshot while holding the same origin-wide Web Lock.
 export const PROGRESS_KEY = 'orbity-dialoga-progress-v1';
-export const emptyState = () => ({ completed: {}, answers: {}, notes: {}, review: {}, missionSteps: {} });
-const fields = Object.keys(emptyState());
+export const emptyState = () => ({ completed: {}, answers: {}, notes: {}, review: {}, missionSteps: {},
+  focusModule: null, currentLessonId: null, guidedFlow: null });
+const fields = ['completed', 'answers', 'notes', 'review', 'missionSteps'];
+const navigationFields = ['focusModule', 'currentLessonId', 'guidedFlow'];
 const record = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
 const fail = (code) => { throw Object.assign(new Error(code), { code }); };
 
 export function createProgressStore({ lessons, missions, storage = () => globalThis.localStorage,
-  locks = () => globalThis.navigator?.locks, lockTimeout = 5000 }) {
+  locks = () => globalThis.navigator?.locks, lockTimeout = 5000, guided = {
+    listening: ['listening-3', 'listening-1', 'listening-2'],
+    conflict: ['conflict-1', 'conflict-2', 'conflict-3'],
+    needs: ['needs-1', 'needs-2', 'needs-3'],
+  } }) {
   const lessonById = new Map(lessons.map((lesson) => [lesson.id, lesson]));
   const missionById = new Map(missions.map((mission) => [mission.id, mission]));
 
   function validate(raw, importing = false) {
     if (!record(raw)) fail('INVALID_FILE');
-    const allowed = importing ? [...fields, 'version', 'savedAt'] : fields;
+    const allowed = [...fields, ...navigationFields, ...(importing ? ['version', 'savedAt'] : [])];
     if (Object.keys(raw).some((key) => !allowed.includes(key))) fail('INVALID_FILE');
     if (importing && (raw.version !== 1 ||
       ('savedAt' in raw && (typeof raw.savedAt !== 'string' || !Number.isFinite(Date.parse(raw.savedAt)))))) fail('INVALID_FILE');
@@ -36,6 +42,23 @@ export function createProgressStore({ lessons, missions, storage = () => globalT
           clean[field][id] = value;
         }
       }
+    }
+    // Navigation fields were added without changing the v1 export version.
+    // Their absence is valid for older exports; their malformed values are not.
+    if (raw.focusModule != null) {
+      if (!lessons.some((lesson) => lesson.moduleId === raw.focusModule)) fail('INVALID_FILE');
+      clean.focusModule = raw.focusModule;
+    }
+    if (raw.currentLessonId != null) {
+      if (!lessonById.has(raw.currentLessonId)) fail('INVALID_FILE');
+      clean.currentLessonId = raw.currentLessonId;
+    }
+    if (raw.guidedFlow != null) {
+      const flow = raw.guidedFlow;
+      if (!record(flow) || typeof flow.topic !== 'string' || Object.keys(flow).some((key) => !['topic', 'step'].includes(key)) ||
+        !Object.hasOwn(guided, flow.topic) || !Number.isInteger(flow.step) ||
+        flow.step < 0 || flow.step > guided[flow.topic].length) fail('INVALID_FILE');
+      clean.guidedFlow = { topic: flow.topic, step: flow.step };
     }
     return clean;
   }
@@ -73,15 +96,46 @@ export function createProgressStore({ lessons, missions, storage = () => globalT
     snapshot,
     read: () => snapshot().state,
     validateImport: (raw) => validate(raw, true),
+    selectLesson(id) {
+      const lesson = lessonById.get(id);
+      if (!lesson) fail('INVALID_EDIT');
+      return transaction((latest) => {
+        latest.currentLessonId = id;
+        latest.focusModule = lesson.moduleId;
+        latest.guidedFlow = null;
+        return latest;
+      });
+    },
+    startGuided(topic) {
+      if (!Object.hasOwn(guided, topic)) fail('INVALID_EDIT');
+      return transaction((latest) => {
+        latest.focusModule = topic;
+        latest.currentLessonId = guided[topic][0];
+        latest.guidedFlow = { topic, step: latest.guidedFlow?.topic === topic ? latest.guidedFlow.step : 0 };
+        return latest;
+      });
+    },
     answer(id, choice, mode, now = Date.now()) {
       const lesson = lessonById.get(id);
-      if (!lesson || !Number.isInteger(choice) || choice < 0 || choice >= lesson.quiz.choices.length) fail('INVALID_EDIT');
+      if (!lesson || !['lesson', 'practice', 'review', 'guided'].includes(mode) ||
+        !Number.isInteger(choice) || choice < 0 || choice >= lesson.quiz.choices.length) fail('INVALID_EDIT');
       return transaction((latest) => {
-        if (mode !== 'review') latest.answers[id] = choice;
-        if (lesson.quiz.correct.includes(choice)) {
-          latest.completed[id] ||= now;
-          latest.review[id] = now + (mode === 'review' ? 3 : 1) * 86400000;
+        if (!lesson.quiz.correct.includes(choice)) return latest;
+        if (mode === 'guided') {
+          const step = guided[lesson.moduleId]?.indexOf(id);
+          if (latest.guidedFlow?.topic !== lesson.moduleId || !(step >= 0)) fail('FLOW_CONFLICT');
+          latest.guidedFlow.step = Math.max(latest.guidedFlow.step, step + 1);
+          return latest;
         }
+        // Preserve the new UI contract: only a full lesson marks completion.
+        if (mode === 'lesson') {
+          latest.completed[id] ||= now;
+          latest.currentLessonId = id;
+          latest.focusModule = lesson.moduleId;
+          latest.guidedFlow = null;
+        }
+        latest.answers[id] = choice;
+        if (latest.completed[id]) latest.review[id] = now + (mode === 'review' ? 3 : 1) * 86400000;
         return latest;
       });
     },

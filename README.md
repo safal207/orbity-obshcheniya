@@ -2,6 +2,8 @@
 
 An interactive communication practice site for people in relationships: 8 themes, 32 short lessons with answer feedback, 6 optional real-life exercises, review, and local progress. It helps visitors rehearse clearer questions, listening, requests, boundaries, and repair after conflict. It does not claim to measure or guarantee a change in a relationship.
 
+The main flow presents one decision at a time: choose a topic, try three short situations, then study bite-sized lessons. Introductory answers do not count as completed lessons; the lesson progress advances after its teaching step and correct answer. Other sections stay in a compact menu.
+
 ## Try it in English
 
 - [One-minute practice](https://safal207.github.io/orbity-obshcheniya/en.html#practice/listening-3)
@@ -26,6 +28,8 @@ Run locally with `node server.mjs`, then open `http://127.0.0.1:5187/` or `/en.h
 # Орбиты общения
 
 Интерактивный тренажёр навыков общения для женщин и мужчин: 8 этапов, 32 коротких урока и проверки, 6 заданий для жизни, повторение и перенос прогресса.
+
+Главный сценарий показывает один выбор за раз: тема → три вводные ситуации → короткие уроки с одним вопросом и разбором. Вводные ответы помогают выбрать маршрут и не засчитываются как пройденные уроки. Остальные разделы находятся в меню «Разделы».
 
 ## Открыть сайт
 
