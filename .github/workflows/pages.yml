@@ -10,8 +10,9 @@ permissions:
   contents: read
 
 concurrency:
-  group: github-pages
-  cancel-in-progress: false
+  # PR validation must never replace a pending main-branch publication.
+  group: ${{ github.event_name == 'pull_request' && format('orbity-pr-{0}', github.event.pull_request.number) || 'github-pages' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   validate:
@@ -25,10 +26,12 @@ jobs:
           node --check dist/app.en.js
           node --check dist/course.js
           node --check dist/course.en.js
+          node --check dist/progress-store.js
           node tests/locales.mjs
           node tests/ui-smoke.mjs
+          node --test tests/progress-safety.mjs tests/ui-safety.mjs tests/workflow-safety.mjs
   deploy:
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     needs: validate
     runs-on: ubuntu-latest
     permissions:

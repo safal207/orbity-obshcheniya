@@ -1,7 +1,7 @@
 import { modules, lessons, missions } from './course.js';
 
-const KEY = 'orbity-dialoga-progress-v1';
-const day = 24 * 60 * 60 * 1000;
+import { createProgressStore, emptyState, PROGRESS_KEY } from './progress-store.js';
+const store = createProgressStore({ lessons, missions });
 const lessonById = new Map(lessons.map((lesson) => [lesson.id, lesson]));
 const missionById = new Map(missions.map((mission) => [mission.id, mission]));
 const main = document.querySelector('#main');
@@ -11,52 +11,48 @@ let toastTimer;
 let reviewSessionIds = null;
 let reviewAttempts = {};
 
-function emptyState() {
-  return { completed: {}, answers: {}, notes: {}, review: {}, missionSteps: {} };
+const storageMessages = {
+  "INVALID_FILE": "Файл прогресса повреждён или имеет неподдерживаемую структуру.",
+  "INVALID_STORED": "Сохранённые данные повреждены. Ничего не перезаписано.",
+  "STORAGE_FAILED": "Не удалось сохранить или прочитать прогресс. Ваш текст оставлен на экране; попробуйте снова.",
+  "LOCK_UNAVAILABLE": "Безопасное сохранение недоступно. Скопируйте заметку и откройте сайт по HTTPS в современном браузере.",
+  "LOCK_TIMEOUT": "Другая вкладка занята сохранением. Ничего не записано; попробуйте снова.",
+  "NOTE_CONFLICT": "Заметка изменена в другой вкладке. Ваш текст оставлен на экране: скопируйте его и откройте урок снова.",
+  "IMPORT_CONFLICT": "Прогресс изменился в другой вкладке. Импорт отменён; проверьте данные и повторите.",
+  "FILE_TOO_LARGE": "Файл слишком большой."
+};
+let initialLoadError;
+let noteBaseline = '';
+
+function storageError(error) {
+  showToast(storageMessages[error?.code] || storageMessages.STORAGE_FAILED, 10000);
 }
 
 function loadState() {
-  try {
-    const raw = JSON.parse(localStorage.getItem(KEY) || 'null');
-    return normalizeState(raw);
-  } catch {
-    return emptyState();
-  }
-}
-
-function normalizeState(raw) {
-  const clean = emptyState();
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return clean;
-  for (const lesson of lessons) {
-    const id = lesson.id;
-    if (Number.isFinite(raw.completed?.[id])) clean.completed[id] = raw.completed[id];
-    if (Number.isInteger(raw.answers?.[id]) && raw.answers[id] >= 0 && raw.answers[id] < lesson.quiz.choices.length) clean.answers[id] = raw.answers[id];
-    if (typeof raw.notes?.[id] === 'string') clean.notes[id] = raw.notes[id].slice(0, 2000);
-    if (Number.isFinite(raw.review?.[id])) clean.review[id] = raw.review[id];
-  }
-  for (const mission of missions) {
-    const steps = raw.missionSteps?.[mission.id];
-    if (Array.isArray(steps)) clean.missionSteps[mission.id] = mission.steps.map((_, index) => steps[index] === true);
-  }
-  return clean;
+  try { return store.read(); }
+  catch (error) { initialLoadError = error; return emptyState(); }
 }
 
 let state = loadState();
 
-function persist() {
-  try { localStorage.setItem(KEY, JSON.stringify(state)); }
-  catch { showToast('Не удалось сохранить прогресс в этом браузере'); }
+async function commit(operation, message = '') {
+  try {
+    const saved = await operation();
+    state = saved;
+    if (message) showToast(message);
+    return true;
+  } catch (error) { storageError(error); return false; }
 }
 
 function esc(value) {
   return String(value).replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
 }
 
-function showToast(message) {
+function showToast(message, duration = 3500) {
   toast.textContent = message;
   toast.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => toast.classList.remove('show'), 3500);
+  toastTimer = setTimeout(() => toast.classList.remove('show'), duration);
 }
 
 function completedCount() { return lessons.filter((lesson) => state.completed[lesson.id]).length; }
@@ -105,6 +101,7 @@ function renderQuiz(lesson, mode = 'lesson') {
 }
 
 function renderLesson(lesson) {
+  noteBaseline = state.notes[lesson.id] || '';
   const index = lessons.indexOf(lesson);
   const module = modules.find((item) => item.id === lesson.moduleId);
   const next = lessons[index + 1];
@@ -183,17 +180,12 @@ function render() {
   else window.scrollTo({ top: 0, behavior: 'auto' });
 }
 
-function chooseAnswer(id, choice, mode) {
+async function chooseAnswer(id, choice, mode) {
   const lesson = lessonById.get(id);
   if (!lesson || !Number.isInteger(choice) || choice < 0 || choice >= lesson.quiz.choices.length) return;
+  const message = lesson.quiz.correct.includes(choice) ? 'Верно — урок сохранён в прогрессе' : '';
+  if (!await commit(() => store.answer(id, choice, mode), message)) return;
   if (mode === 'review') reviewAttempts[id] = choice;
-  else state.answers[id] = choice;
-  if (lesson.quiz.correct.includes(choice)) {
-    if (!state.completed[id]) state.completed[id] = Date.now();
-    state.review[id] = Date.now() + (mode === 'review' ? 3 : 1) * day;
-    showToast('Верно — урок сохранён в прогрессе');
-  }
-  persist();
   const panel = [...main.querySelectorAll('[data-quiz-panel]')].find((item) => item.dataset.quizPanel === id);
   if (panel) {
     panel.outerHTML = renderQuiz(lesson, mode);
@@ -206,7 +198,7 @@ function chooseAnswer(id, choice, mode) {
 
 main.addEventListener('click', async (event) => {
   const quizButton = event.target.closest('[data-quiz-id]');
-  if (quizButton) { chooseAnswer(quizButton.dataset.quizId, Number(quizButton.dataset.choice), quizButton.dataset.mode); return; }
+  if (quizButton) { await chooseAnswer(quizButton.dataset.quizId, Number(quizButton.dataset.choice), quizButton.dataset.mode); return; }
   const copyButton = event.target.closest('[data-copy-example]');
   if (copyButton) {
     const example = lessonById.get(copyButton.dataset.copyExample)?.example;
@@ -219,11 +211,21 @@ main.addEventListener('click', async (event) => {
   if (filterButton) { filter = filterButton.dataset.filter; render(); return; }
   const noteButton = event.target.closest('[data-save-note]');
   if (noteButton) {
-    state.notes[noteButton.dataset.saveNote] = main.querySelector('#reflection')?.value.slice(0, 2000) || '';
-    persist(); showToast('Заметка сохранена на этом устройстве'); return;
+    const input = main.querySelector('#reflection');
+    if (!input) return;
+    const id = noteButton.dataset.saveNote;
+    const value = input.value.slice(0, 2000);
+    const expected = noteBaseline;
+    if (await commit(() => store.saveNote(id, value, expected), 'Заметка сохранена на этом устройстве')) {
+      // Do not overwrite text typed while the save was waiting for its lock.
+      if (main.querySelector('#reflection') === input) noteBaseline = value;
+    }
+    return;
   }
   if (event.target.closest('[data-export]')) {
-    const blob = new Blob([JSON.stringify({ version: 1, savedAt: new Date().toISOString(), ...state }, null, 2)], { type: 'application/json' });
+    let saved;
+    try { saved = store.read(); } catch (error) { storageError(error); return; }
+    const blob = new Blob([JSON.stringify({ version: 1, savedAt: new Date().toISOString(), ...saved }, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url; link.download = 'orbity-obshcheniya-progress.json'; link.click();
@@ -238,10 +240,14 @@ main.addEventListener('change', async (event) => {
     const mission = missionById.get(checkbox.dataset.mission);
     const index = Number(checkbox.dataset.step);
     if (!mission || !Number.isInteger(index) || index < 0 || index >= mission.steps.length) return;
-    state.missionSteps[mission.id] ||= mission.steps.map(() => false);
-    state.missionSteps[mission.id][index] = checkbox.checked;
-    persist();
+    const checked = checkbox.checked;
+    if (!await commit(() => store.setMissionStep(mission.id, index, checked))) {
+      checkbox.checked = state.missionSteps[mission.id]?.[index] === true;
+      return;
+    }
+    if (route().name !== 'mission' || route().id !== mission.id) return;
     const status = main.querySelector('[data-mission-status]');
+    if (!status) return;
     const done = missionDone(mission);
     status.className = done ? 'success-line' : 'subtle';
     status.textContent = done ? 'Задание отмечено как выполненное ✓' : 'Отмечай шаги по мере выполнения. Прогресс хранится на этом устройстве.';
@@ -252,14 +258,34 @@ main.addEventListener('change', async (event) => {
   if (!input?.files?.length) return;
   try {
     const file = input.files[0];
-    if (file.size > 2_000_000) throw new Error('Файл слишком большой');
-    const parsed = JSON.parse(await file.text());
-    if (parsed.version !== 1 || !parsed.completed || typeof parsed.completed !== 'object') throw new Error('Это не файл прогресса Орбит общения');
+    if (file.size > 2_000_000) throw Object.assign(new Error(), { code: 'FILE_TOO_LARGE' });
+    let parsed;
+    try { parsed = JSON.parse(await file.text()); }
+    catch { throw Object.assign(new Error(), { code: 'INVALID_FILE' }); }
+    const imported = store.validateImport(parsed);
+    const { token } = store.snapshot();
     if (!confirm('Заменить текущий прогресс данными из файла?')) return;
-    state = normalizeState(parsed);
-    persist(); render(); showToast('Прогресс загружен');
-  } catch (error) { showToast(error.message || 'Не удалось загрузить файл'); }
+    if (await commit(() => store.replace(imported, token), 'Прогресс загружен')) render();
+  } catch (error) { storageError(error); }
+  finally { input.value = ''; }
 });
 
+// Refresh saved progress without re-rendering over an unsaved note.
+function refreshProgress() {
+  const input = main.querySelector('#reflection');
+  const dirty = input && input.value !== noteBaseline;
+  try { state = store.read(); } catch (error) { storageError(error); return; }
+  if (!dirty) render();
+  else {
+    const badge = document.querySelector('#review-badge');
+    badge.textContent = dueLessons().length;
+    badge.hidden = !dueLessons().length;
+  }
+}
+window.addEventListener('storage', (event) => {
+  if (event.key === PROGRESS_KEY || event.key === null) refreshProgress();
+});
+window.addEventListener('focus', refreshProgress);
 window.addEventListener('hashchange', render);
 render();
+if (initialLoadError) storageError(initialLoadError);

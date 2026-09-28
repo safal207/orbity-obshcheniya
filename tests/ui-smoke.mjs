@@ -9,6 +9,7 @@ const main = {
   handlers: {},
   addEventListener(type, handler) { this.handlers[type] = handler; },
   querySelectorAll() { return []; },
+  querySelector() { return null; },
 };
 const breadcrumb = { textContent: '' };
 const languageLink = { href: '' };
@@ -26,7 +27,7 @@ globalThis.localStorage = {
   setItem(key, value) { storage.set(key, value); },
 };
 Object.defineProperty(globalThis, 'navigator', {
-  value: { clipboard: { async writeText(value) { copiedExample = value; } } },
+  value: { locks: { async request(name, options, callback) { return callback(); } }, clipboard: { async writeText(value) { copiedExample = value; } } },
   configurable: true,
 });
 globalThis.location = { hash: '#practice/listening-3' };
