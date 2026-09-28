@@ -127,10 +127,9 @@ function renderHome() {
   }
   if (done === 0) {
     return flow('ONE SITUATION · A FEW MINUTES', null,
-      '<h1 class="flow-title" tabindex="-1">Practise one difficult conversation.</h1>' +
-      '<p class="flow-intro">Choose a topic, answer one short question, and see why it works.</p>' +
-      '<div class="flow-actions">' + primary('#start', 'Start practising') + '</div>' +
-      '<a class="text-link" href="#path">Explore all topics</a>');
+      '<h1 class="flow-title" tabindex="-1">Start with one question.</h1>' +
+      '<p class="flow-intro">Choose a relationship situation, answer a question, and get a short explanation.</p>' +
+      '<div class="flow-actions">' + primary('#start', 'Start') + '</div>');
   }
   return flow('YOUR NEXT STEP', null,
     '<h1 class="flow-title" tabindex="-1">' + esc(next.title) + '</h1>' +

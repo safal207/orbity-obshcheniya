@@ -127,10 +127,9 @@ function renderHome() {
   }
   if (done === 0) {
     return flow('ОДНА СИТУАЦИЯ · ПАРА МИНУТ', null,
-      '<h1 class="flow-title" tabindex="-1">Потренируйте один сложный разговор.</h1>' +
-      '<p class="flow-intro">Сначала выберите тему. Затем ответьте на короткий вопрос и посмотрите разбор.</p>' +
-      '<div class="flow-actions">' + primary('#start', 'Начать практику') + '</div>' +
-      '<a class="text-link" href="#path">Посмотреть все темы</a>');
+      '<h1 class="flow-title" tabindex="-1">Начните с одного вопроса.</h1>' +
+      '<p class="flow-intro">Выберите ситуацию в отношениях, ответьте на вопрос и получите короткий разбор.</p>' +
+      '<div class="flow-actions">' + primary('#start', 'Начать') + '</div>');
   }
   return flow('ВАШ СЛЕДУЮЩИЙ ШАГ', null,
     '<h1 class="flow-title" tabindex="-1">' + esc(next.title) + '</h1>' +

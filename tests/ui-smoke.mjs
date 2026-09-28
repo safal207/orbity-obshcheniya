@@ -80,7 +80,8 @@ function answer(id, mode, choice) {
 }
 
 await import('../dist/app.js');
-assert.match(main.innerHTML, /Начать практику/u, 'Russian home presents a clear start action');
+assert.match(main.innerHTML, /class="primary-button" href="#start"/u, 'Russian home presents one clear start action');
+assert.doesNotMatch(main.innerHTML, /href="#path"/u, 'Russian first screen has no competing path link');
 assert.equal(languageLink.href, 'en.html#today', 'Russian page preserves the route in its language link');
 
 visit('#start');
