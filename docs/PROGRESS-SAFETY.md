@@ -49,7 +49,12 @@ explicit. Reload all previously open RU/EN tabs after deployment. Old pre-fix
 code does not acquire the lock, so mixed-version tabs are outside this contract.
 This is local browser persistence, not cross-device sync or protection against
 user-cleared storage, corruption, or uncooperative scripts. Corrupt stored data
-is not silently overwritten; its recovery remains outside the current UI.
+blocks ordinary writes without silently dropping values. A validated backup can
+restore it through the explicit replacement prompt; a raw-token comparison still
+rejects an intervening repair from another tab. Import validation is not relaxed.
+Focus refresh skips unchanged state; when data changes it restores scroll, open
+disclosures and the focused field/selection. Repeated read-error toasts are
+suppressed until the storage state recovers.
 
 PR checks use `orbity-pr-<number>`; main publication retains `github-pages` and
 does not cancel running publication. Deploy also requires validation and
@@ -73,9 +78,9 @@ node --test tests/progress-safety.mjs tests/ui-safety.mjs tests/workflow-safety.
 git diff --check
 ```
 
-Node 22.16.0: both enhanced upstream scripts pass; **92 new tests pass**.
-The same 42 black-box UI cases against main `529b8c52` produce **37 failures
-and five passes**. Set `ORBITY_APP_DIR` to that revision's original dist folder
+Node 22.16.0: both enhanced upstream scripts pass; **102 new tests pass**.
+The same 50 black-box UI cases against main `529b8c52` produce **42 failures
+and eight passes**. Set `ORBITY_APP_DIR` to that revision's original dist folder
 to reproduce the negative control with `node --test tests/ui-safety.mjs`.
 Earlier verification on the original pre-redesign base was superseded by this
 integrated run; it is not used to claim acceptance of the new UI.

@@ -63,16 +63,19 @@ export function createProgressStore({ lessons, missions, storage = () => globalT
     return clean;
   }
 
-  function snapshot() {
+  function snapshot({ allowInvalid = false } = {}) {
     let token;
     try { token = storage().getItem(PROGRESS_KEY); }
     catch { fail('STORAGE_FAILED'); }
     if (token === null) return { token, state: emptyState() };
     try { return { token, state: validate(JSON.parse(token)) }; }
-    catch { fail('INVALID_STORED'); }
+    catch {
+      if (allowInvalid) return { token, state: null, invalid: true };
+      fail('INVALID_STORED');
+    }
   }
 
-  async function transaction(edit) {
+  async function transaction(edit, allowInvalid = false) {
     const manager = locks();
     if (!manager?.request) fail('LOCK_UNAVAILABLE');
     const controller = new AbortController();
@@ -80,7 +83,7 @@ export function createProgressStore({ lessons, missions, storage = () => globalT
     try {
       return await manager.request(PROGRESS_KEY, { mode: 'exclusive', signal: controller.signal }, () => {
         // Synchronous read/modify/write under the lock; no prompts or awaits here.
-        const current = snapshot();
+        const current = snapshot({ allowInvalid });
         const next = validate(edit(current.state, current.token));
         try { storage().setItem(PROGRESS_KEY, JSON.stringify(next)); }
         catch { fail('STORAGE_FAILED'); }
@@ -164,7 +167,7 @@ export function createProgressStore({ lessons, missions, storage = () => globalT
         // Do not erase a write committed after the replacement confirmation began.
         if (token !== expectedToken) fail('IMPORT_CONFLICT');
         return replacement;
-      });
+      }, true);
     },
   };
 }

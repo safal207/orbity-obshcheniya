@@ -21,7 +21,7 @@ let toastTimer;
 const store = createProgressStore({ lessons, missions, guided });
 const storageMessages = {
   "INVALID_FILE": "Файл прогресса повреждён или имеет неподдерживаемую структуру.",
-  "INVALID_STORED": "Сохранённые данные повреждены. Ничего не перезаписано.",
+  "INVALID_STORED": "Сохранённые данные повреждены. Ничего не перезаписано. В разделе «Прогресс» можно загрузить исправную копию.",
   "STORAGE_FAILED": "Не удалось сохранить или прочитать прогресс. Изменения не подтверждены; черновик заметки сохранён в этой вкладке.",
   "LOCK_UNAVAILABLE": "Безопасное сохранение недоступно. Скопируйте заметку и откройте сайт по HTTPS в современном браузере.",
   "LOCK_TIMEOUT": "Другая вкладка занята сохранением. Ничего не записано; попробуйте снова.",
@@ -33,6 +33,7 @@ const storageMessages = {
 };
 const drafts = new Map();
 let initialLoadError;
+let lastRefreshError;
 function storageError(error) {
   announce(storageMessages[error?.code] || storageMessages.STORAGE_FAILED, 10000);
 }
@@ -537,7 +538,7 @@ main.addEventListener('change', async (event) => {
     catch { throw Object.assign(new Error(), { code: 'INVALID_FILE' }); }
     const imported = store.validateImport(parsed);
     if (hasUnsavedNotes()) throw Object.assign(new Error(), { code: 'UNSAVED_NOTES' });
-    const { token } = store.snapshot();
+    const { token } = store.snapshot({ allowInvalid: true });
     if (!confirm('Заменить текущий прогресс данными из файла?')) return;
     if (await commit(() => store.replace(imported, token), 'Прогресс загружен')) {
       drafts.clear();
@@ -557,12 +558,36 @@ document.querySelector('.skip-link')?.addEventListener('click', (event) => {
   main.focus();
 });
 function refreshProgress() {
-  try { state = store.read(); } catch (error) { storageError(error); return; }
+  let latest;
+  try { latest = store.read(); lastRefreshError = null; }
+  catch (error) {
+    const code = error?.code || 'STORAGE_FAILED';
+    if (code !== lastRefreshError) storageError(error);
+    lastRefreshError = code;
+    return;
+  }
+  if (JSON.stringify(latest) === JSON.stringify(state)) return;
+  state = latest;
   for (const [id, draft] of drafts) {
     if (!draft.pending && draft.value === draft.base) drafts.delete(id);
   }
   // Never replace an editor containing pending or failed text with remote state.
-  if (!hasUnsavedNotes()) render();
+  if (hasUnsavedNotes()) return;
+  const x = window.scrollX || 0;
+  const y = window.scrollY || 0;
+  const open = [...main.querySelectorAll('details')].map((item) => item.open);
+  const active = document.activeElement;
+  const focusedId = active?.id;
+  const selection = typeof active?.selectionStart === 'number'
+    ? [active.selectionStart, active.selectionEnd] : null;
+  render();
+  main.querySelectorAll('details').forEach((item, index) => { item.open = open[index] === true; });
+  if (focusedId) {
+    const replacement = document.getElementById?.(focusedId);
+    replacement?.focus({ preventScroll: true });
+    if (selection) replacement?.setSelectionRange?.(...selection);
+  }
+  window.scrollTo({ left: x, top: y, behavior: 'auto' });
 }
 window.addEventListener('storage', (event) => {
   if (event.key === PROGRESS_KEY || event.key === null) refreshProgress();
@@ -573,4 +598,4 @@ window.addEventListener('beforeunload', (event) => {
 });
 window.addEventListener('hashchange', () => navigate(true));
 await navigate(false);
-if (initialLoadError) storageError(initialLoadError);
+if (initialLoadError) { storageError(initialLoadError); lastRefreshError = initialLoadError.code; }

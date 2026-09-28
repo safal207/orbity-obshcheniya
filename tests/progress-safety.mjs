@@ -199,3 +199,26 @@ test('stale guided answers cannot change a topic selected in another tab', async
   await assert.rejects(a.answer('listening-3', 1, 'guided', now), { code: 'FLOW_CONFLICT' });
   assert.equal(a.read().guidedFlow.topic, 'needs');
 });
+
+test('a validated backup can explicitly replace corrupt storage without implicit normalization', async () => {
+  const f = fixture(); const store = f.make();
+  f.data.set(PROGRESS_KEY, '{damaged original');
+  assert.throws(() => store.read(), { code: 'INVALID_STORED' });
+  const snapshot = store.snapshot({ allowInvalid: true });
+  assert.equal(snapshot.invalid, true);
+  assert.equal(snapshot.token, '{damaged original');
+  const restored = emptyState(); restored.notes[first.id] = 'from validated backup';
+  await store.replace(store.validateImport(file(restored)), snapshot.token);
+  assert.deepEqual(store.read(), restored);
+});
+
+test('recovery refuses to overwrite a concurrent repair and malformed backups remain rejected', async () => {
+  const f = fixture(); const store = f.make();
+  f.data.set(PROGRESS_KEY, '{damaged');
+  const { token } = store.snapshot({ allowInvalid: true });
+  assert.throws(() => store.validateImport({ version: 1, completed: [] }), { code: 'INVALID_FILE' });
+  const repair = emptyState(); repair.notes[first.id] = 'other tab recovered';
+  f.data.set(PROGRESS_KEY, JSON.stringify(repair));
+  await assert.rejects(store.replace(emptyState(), token), { code: 'IMPORT_CONFLICT' });
+  assert.deepEqual(store.read(), repair);
+});

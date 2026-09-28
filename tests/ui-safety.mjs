@@ -54,7 +54,10 @@ async function boot(lang, { initial = seed(), hash = '#progress', writeFailure =
     const result = tail.then(() => callback({ name })); tail = result.catch(() => {}); return result;
   } };
   Object.defineProperty(globalThis, 'navigator', { value: { locks, clipboard: { async writeText() {} } }, configurable: true });
-  globalThis.window = { addEventListener(type, handler) { listeners[type] = handler; }, scrollTo() {} };
+  globalThis.window = { addEventListener(type, handler) { listeners[type] = handler; },
+    scrollX: 0, scrollY: 0,
+    scrollTo({ top, left = 0 }) { this.scrollY = top; this.scrollX = left; },
+  };
   globalThis.location = { hash };
   globalThis.confirm = () => { confirmations++; return confirmResult; };
   const name = lang === 'ru' ? 'app.js' : 'app.en.js';
@@ -230,5 +233,33 @@ for (const lang of ['ru', 'en']) {
     const f = await boot(lang, { writeFailure: true, hash: '#start' }); const before = f.raw;
     await f.click({ topic: 'listening' });
     assert.equal(location.hash, '#start'); assert.equal(f.raw, before);
+  });
+}
+
+for (const lang of ['ru', 'en']) {
+  test(`${lang}: recovery import replaces corrupt state only after validation and confirmation`, async () => {
+    const f = await boot(lang); f.external('{damaged');
+    await f.upload(validFile());
+    assert.equal(f.confirmations, 1);
+    assert.equal(JSON.parse(f.raw).notes[lesson.id], 'original note');
+    assert.equal(f.toast.textContent, successImport[lang]);
+  });
+  test(`${lang}: focus without data changes does not render or reset scroll`, async () => {
+    const f = await boot(lang); window.scrollY = 420; const renders = f.renders;
+    f.listeners.focus?.();
+    assert.equal(f.renders, renders); assert.equal(window.scrollY, 420);
+  });
+  test(`${lang}: changed external data refreshes progress without losing scroll`, async () => {
+    const f = await boot(lang); window.scrollY = 420; const renders = f.renders;
+    const changed = JSON.parse(f.raw); changed.completed[lessons[0].id] = 1790600000000;
+    f.external(changed); f.listeners.storage?.({ key: KEY });
+    assert.equal(f.renders, renders + 1); assert.equal(window.scrollY, 420);
+    assert.match(f.main.innerHTML, /2 (?:из|of|\/) 32/u);
+  });
+  test(`${lang}: repeated focus storage failures do not repeat the same toast`, async () => {
+    const f = await boot(lang); f.external('{broken');
+    f.listeners.focus?.(); assert.ok(f.toast.textContent);
+    f.toast.textContent = 'marker'; f.listeners.focus?.();
+    assert.equal(f.toast.textContent, 'marker');
   });
 }
