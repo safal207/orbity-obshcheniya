@@ -37,6 +37,8 @@ a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visib
 .brand-name { white-space: nowrap; font-size: 19px; }
 .brand-name strong { color: var(--accent); font-weight: 750; }
 .header-tools { display: flex; align-items: center; gap: 22px; }
+.language-link { min-width: 38px; min-height: 38px; padding: 7px; display: inline-grid; place-items: center; border: 1px solid var(--line); border-radius: 9px; color: var(--accent-dark); font-size: 12px; font-weight: 800; }
+.language-link:hover { background: #f3eee9; border-color: #d8cabf; }
 .header-progress { white-space: nowrap; color: var(--muted); font-size: 12px; font-weight: 650; }
 .site-menu { position: relative; }
 .menu-trigger { min-height: 38px; display: flex; align-items: center; gap: 10px; padding: 8px 11px; border: 1px solid var(--line); border-radius: 9px; list-style: none; color: var(--ink); font-size: 12px; font-weight: 700; cursor: pointer; user-select: none; }
@@ -63,6 +65,7 @@ main:focus { outline: none; }
 .step-text, .flow-step { margin: 0 0 18px; color: var(--muted); font-size: 13px; font-weight: 650; line-height: 1.5; }
 .eyebrow { margin: 0 0 12px; color: var(--accent); font-size: 11px; font-weight: 800; letter-spacing: .11em; line-height: 1.5; text-transform: uppercase; }
 .fine-print { margin: 14px 0 0; color: var(--muted); font-size: 12px; }
+.safety-note { padding-top: 12px; border-top: 1px solid var(--line); }
 .example-text { margin: 16px 0; color: var(--muted); }
 .flow-card > :last-child { margin-bottom: 0; }
 .flow-card h2, .section-page h2, .mission-screen h2 { margin: 0 0 12px; font-size: clamp(20px, 3vw, 25px); line-height: 1.3; letter-spacing: -.025em; }
@@ -143,7 +146,7 @@ main:focus { outline: none; }
   .brand-mark { width: 31px; height: 31px; border-radius: 9px; font-size: 21px; }
   .brand-name { font-size: 16px; }
   .header-tools { gap: 9px; }
-  .header-progress { max-width: 95px; overflow: hidden; text-overflow: ellipsis; font-size: 10px; }
+  .header-progress { display: none; }
   .menu-trigger { min-width: 35px; min-height: 35px; justify-content: center; padding: 7px; font-size: 0; }
   .menu-trigger span { font-size: 17px; }
   .menu-panel { width: min(220px, calc(100vw - 32px)); }
