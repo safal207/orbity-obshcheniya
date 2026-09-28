@@ -41,8 +41,8 @@ const [ruPage, enPage] = await Promise.all([
 ]);
 assert.match(ruPage, /<html lang="ru">/u);
 assert.match(enPage, /<html lang="en">/u);
-assert.match(ruPage, /src="app\.js"/u);
-assert.match(enPage, /src="app\.en\.js"/u);
+assert.match(ruPage, /src="app\.js\?v=[^"]+"/u);
+assert.match(enPage, /src="app\.en\.js\?v=[^"]+"/u);
 assert.match(ruPage, /id="language-link"[^>]*href="en\.html/u, 'Russian page links to English');
 assert.match(enPage, /id="language-link"[^>]*href="index\.html/u, 'English page links to Russian');
 console.log('RU/EN content, answer keys, and progress IDs are aligned.');
