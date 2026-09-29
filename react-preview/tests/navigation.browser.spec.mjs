@@ -152,17 +152,27 @@ for (const width of [320, 1280]) {
     await expect(page.locator('.lesson-top')).toContainText('STEP 3/3');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 
-    await page.getByRole('button', { name: /Back to previous step/ }).click();
-    await expect(page.locator('.lesson-top')).toContainText('STEP 2/3');
+    await page.getByRole('button', { name: /Mark complete/ }).click();
+    await expect(page.locator('.lesson-top')).toContainText('MISSION COMPLETE');
     saved = await read(page);
-    expect(saved.missionSteps[mission.id]).toEqual([true, false, false]);
+    expect(saved.missionSteps[mission.id]).toEqual([true, true, true]);
     expect(saved.completed).toEqual(state.completed);
     expect(saved.answers).toEqual(state.answers);
     await expect(page.getByTestId('xp')).toContainText('20 XP');
 
     await page.reload();
-    await expect(page.locator('.lesson-top')).toContainText('STEP 2/3');
-    expect((await read(page)).missionSteps[mission.id]).toEqual([true, false, false]);
+    await expect(page.locator('.lesson-top')).toContainText('MISSION COMPLETE');
+    await page.getByRole('button', { name: /Undo last step/ }).click();
+    await expect(page.locator('.lesson-top')).toContainText('STEP 3/3');
+    saved = await read(page);
+    expect(saved.missionSteps[mission.id]).toEqual([true, true, false]);
+    expect(saved.completed).toEqual(state.completed);
+    expect(saved.answers).toEqual(state.answers);
+    await expect(page.getByTestId('xp')).toContainText('20 XP');
+
+    await page.reload();
+    await expect(page.locator('.lesson-top')).toContainText('STEP 3/3');
+    expect((await read(page)).missionSteps[mission.id]).toEqual([true, true, false]);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.screenshot({ path: info.outputPath(`mission-${width}.png`), fullPage: true });
   });
