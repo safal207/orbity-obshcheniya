@@ -109,12 +109,64 @@ test('legacy review, module, mission and about links stay useful in React', asyn
 
   const mission = missions[0];
   await page.goto(`/#mission/${mission.id}`);
-  await expect(page.locator(`#mission-${mission.id}`)).toBeFocused();
+  await expect(page.getByTestId('mission-detail')).toBeVisible();
+  await expect(page.getByRole('heading', { name: mission.title })).toBeFocused();
+  await expect(page.getByTestId('mission-step')).toContainText(mission.steps[0]);
 
   await page.goto('/#about');
   await expect(page.getByRole('heading', { name: 'О подходе' })).toBeVisible();
   expect((await read(page)).completed).toEqual({ 'map-1': 1000 });
 });
+
+for (const width of [320, 1280]) {
+  test(`mission deep link resumes, persists complete/undo and fits ${width}px`, async ({ page }, info) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    const mission = missions[0];
+    const state = {
+      ...empty(),
+      completed: { 'map-1': 1000 },
+      answers: { 'map-1': 1 },
+      missionSteps: { [mission.id]: [true, false, false] },
+    };
+    await seed(page, state);
+    await page.goto(`/#mission/${mission.id}`);
+
+    await expect(page.getByTestId('mission-detail')).toBeVisible();
+    await expect(page.getByRole('heading', { name: mission.title })).toBeFocused();
+    await expect(page.locator('.lesson-top')).toContainText('ШАГ 2/3');
+    await expect(page.getByTestId('mission-step')).toContainText(mission.steps[1]);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+
+    await page.getByRole('button', { name: /Отметить выполненным/ }).click();
+    await expect(page.locator('.lesson-top')).toContainText('ШАГ 3/3');
+    let saved = await read(page);
+    expect(saved.missionSteps[mission.id]).toEqual([true, true, false]);
+    expect(saved.completed).toEqual(state.completed);
+    expect(saved.answers).toEqual(state.answers);
+    await expect(page.getByTestId('xp')).toContainText('20 XP');
+
+    await page.reload();
+    await expect(page.locator('.lesson-top')).toContainText('ШАГ 3/3');
+    await page.getByRole('button', { name: 'Switch to English' }).click();
+    await expect(page.locator('.lesson-top')).toContainText('STEP 3/3');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+
+    await page.getByRole('button', { name: /Back to previous step/ }).click();
+    await expect(page.locator('.lesson-top')).toContainText('STEP 2/3');
+    saved = await read(page);
+    expect(saved.missionSteps[mission.id]).toEqual([true, false, false]);
+    expect(saved.completed).toEqual(state.completed);
+    expect(saved.answers).toEqual(state.answers);
+    await expect(page.getByTestId('xp')).toContainText('20 XP');
+
+    await page.reload();
+    await expect(page.locator('.lesson-top')).toContainText('STEP 2/3');
+    expect((await read(page)).missionSteps[mission.id]).toEqual([true, false, false]);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: info.outputPath(`mission-${width}.png`), fullPage: true });
+  });
+}
 
 test('saved legacy lesson and module resume without erasing any progress maps', async ({ page }) => {
   const state = { ...empty(), currentLessonId: 'needs-2', focusModule: 'needs', notes: { 'map-1': 'KEEP THIS NOTE' }, completed: { 'map-1': 1000 } };
