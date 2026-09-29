@@ -15,6 +15,16 @@ export function learningRoute(hash, lessons) {
     return { view: 'guided', id: null, topic: Object.hasOwn(GUIDED, parts[1]) ? parts[1] : null };
   }
   if (parts[0] === 'guided-done') return { view: 'guided', id: null, topic: null };
+
+  // Preserve useful destinations from the legacy hash router. These aliases do
+  // not mutate progress: they only choose the closest React screen.
+  if (parts[0] === 'review' || (parts[0] === 'practice' && !parts[1])) return { view: 'review', id: null };
+  if (parts[0] === 'about') return { view: 'about', id: null };
+  if (parts[0] === 'mission') return { view: 'missions', id: null, missionId: parts[1] || null };
+  if (parts[0] === 'module' && lessons.some((lesson) => lesson.moduleId === parts[1])) {
+    return { view: 'path', id: null, moduleId: parts[1] };
+  }
+
   const route = readRoute(hash, lessons);
   if (route.view === 'lesson') return { ...route, step: /^[0-2]$/.test(parts[2] || '') ? Number(parts[2]) : 0 };
   return route;
