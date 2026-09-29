@@ -21,6 +21,15 @@ test('lesson URL preserves only a valid screen; practice remains independent', (
   assert.deepEqual(learningRoute('#practice/map-1', lessons), { view: 'practice', id: 'map-1' });
   assert.deepEqual(learningRoute('#lesson/missing/2', lessons), { view: 'path', id: null });
 });
+test('legacy section links resolve to equivalent React destinations without progress claims', () => {
+  assert.deepEqual(learningRoute('#review', lessons), { view: 'review', id: null });
+  assert.deepEqual(learningRoute('#practice', lessons), { view: 'review', id: null });
+  assert.deepEqual(learningRoute('#about', lessons), { view: 'about', id: null });
+  assert.deepEqual(learningRoute('#mission/check-in', lessons), { view: 'missions', id: null, missionId: 'check-in' });
+  assert.deepEqual(learningRoute('#module/needs', lessons), { view: 'path', id: null, moduleId: 'needs' });
+  assert.deepEqual(learningRoute('#module/missing', lessons), { view: 'path', id: null });
+});
+
 test('legacy guided URLs cannot select an unearned question', () => {
   for (const hash of ['#guided/0', '#guided/1', '#guided/2', '#guided-done']) assert.deepEqual(learningRoute(hash, lessons), { view: 'guided', id: null, topic: null });
   assert.equal(learningRoute('#guided/unknown', lessons).view, 'path');
