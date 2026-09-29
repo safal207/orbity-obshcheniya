@@ -34,7 +34,7 @@ function App() {
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState('');
   const [pending, setPending] = useState(0);
-  const [route, setRoute] = useState(() => learningRoute(location.hash, ru.lessons));
+  const [route, setRoute] = useState(() => learningRoute(location.hash, ru.lessons, ru.missions));
   const [moduleId, setModuleId] = useState(ru.modules[0].id);
   const [now, setNow] = useState(Date.now());
   const drafts = useRef(new Map());
@@ -57,7 +57,7 @@ function App() {
     refresh();
     const onStorage = (e) => { if (e.key === PROGRESS_KEY || e.key === null) refresh(); };
     const onVisible = () => { if (!document.hidden) refresh(); };
-    const onHash = () => { navigationIntent.current++; setRoute(learningRoute(location.hash, ru.lessons)); setNotice(''); };
+    const onHash = () => { navigationIntent.current++; setRoute(learningRoute(location.hash, ru.lessons, ru.missions)); setNotice(''); };
     const unload = (e) => { if (hasDrafts()) { e.preventDefault(); e.returnValue = ''; } };
     addEventListener('storage', onStorage); addEventListener('focus', refresh);
     addEventListener('hashchange', onHash); addEventListener('beforeunload', unload);
@@ -81,9 +81,6 @@ function App() {
     const selected = ru.lessons.find((l) => l.id === route.id);
     if (selected) setModuleId(selected.moduleId);
     else if (route.moduleId && ru.modules.some((m) => m.id === route.moduleId)) setModuleId(route.moduleId);
-    if (route.view === 'missions' && route.missionId) {
-      document.getElementById(`mission-${route.missionId}`)?.focus({ preventScroll: true });
-    }
   }, [route.view, route.id, route.moduleId, route.missionId, loaded]);
   useEffect(() => {
     if (!loaded || !state || restoredModule.current) return;
@@ -100,7 +97,7 @@ function App() {
   }
   async function go(hash) {
     const intent = ++navigationIntent.current;
-    const destination = learningRoute(hash, ru.lessons);
+    const destination = learningRoute(hash, ru.lessons, ru.missions);
     // Explicit lesson navigation establishes the v1 bookmark, never completion.
     if (destination.view === 'lesson' && !await write(() => store.selectLesson(destination.id))) return;
     // Do not steal navigation back after a lock wait if the user left meanwhile.
@@ -179,6 +176,7 @@ function App() {
   const selectedLesson = course.lessons.find((l) => l.id === route.id);
   const review = stats?.due[0] || course.lessons.find((l) => state?.completed[l.id]) || next;
   const lesson = route.view === 'review' ? review : selectedLesson;
+  const mission = course.missions.find((item) => item.id === route.missionId);
   const resume = resumeTarget(state, course.lessons);
   const savedNext = nextLesson(state, course.lessons);
   const guidedTopic = route.topic || state?.guidedFlow?.topic;
@@ -188,8 +186,8 @@ function App() {
     <aside className="sidebar">
       <a className="brand" href="#path"><span className="brand-icon">◉</span><span>{t('орбиты', 'orbits')}<small>{t('общения', 'of conversation')}</small></span></a>
       <nav aria-label={t('Основная навигация', 'Main navigation')}>{nav.map(([id, icon, name]) =>
-        <button key={id} className={`nav-item ${route.view === id || id === 'path' && (lesson || ['start', 'guided'].includes(route.view)) ? 'active' : ''}`}
-          aria-current={route.view === id ? 'page' : undefined} onClick={() => go(id)}><span aria-hidden="true">{icon}</span>{name}</button>)}</nav>
+        <button key={id} className={`nav-item ${route.view === id || id === 'path' && (lesson || ['start', 'guided'].includes(route.view)) || id === 'missions' && route.view === 'mission' ? 'active' : ''}`}
+          aria-current={route.view === id || id === 'missions' && route.view === 'mission' ? 'page' : undefined} onClick={() => go(id)}><span aria-hidden="true">{icon}</span>{name}</button>)}</nav>
       <div className="sidebar-note"><span>✦</span><p>{t('Не идеальные слова. Настоящее внимание.', 'Not perfect words. Real attention.')}</p></div>
       <small className="preview-label">REACT PREVIEW · 0.1</small>
     </aside>
@@ -227,7 +225,9 @@ function App() {
           {route.view === 'start' && <TopicPicker state={state} pending={pending} t={t} start={start}/>}
           {route.view === 'guided' && (guidedTopic ? <Guided key={guidedTopic} topic={guidedTopic} state={state} course={course} store={store} pending={pending} t={t} write={write} notePanel={notePanel} go={go}/> : <TopicPicker state={state} pending={pending} t={t} start={start}/>)}
           {lesson && <Lesson key={`${route.view}/${lesson.id}`} lesson={lesson} mode={route.view === 'review' ? 'practice' : route.view} step={route.step ?? 2} state={state} pending={pending} t={t} write={write} notePanel={notePanel} go={go}/>}
-          {route.view === 'missions' && <section className="content-page"><span className="eyebrow">{t('ИЗ ПРИЛОЖЕНИЯ — В РАЗГОВОР', 'FROM PRACTICE TO CONVERSATION')}</span><h1 id="page-title" tabIndex={-1}>{t('Маленькие дела.', 'Little actions.')}<br/>{t('Настоящее внимание.', 'Real attention.')}</h1><p className="lead">{t('Попробуйте, когда обоим комфортно. Отметка — ваша запись, а не оценка отношений.', 'Try these when you both feel comfortable. Checkmarks are your records, not relationship scores.')}</p><div className="missions-grid">{course.missions.map((m, i) => <article id={`mission-${m.id}`} tabIndex={route.missionId === m.id ? -1 : undefined} className="card mission" key={m.id} style={{ '--accent': accents[i] }}><span className="mission-icon" aria-hidden="true">{symbols[i]}</span><h2>{m.title}</h2><p>{m.description}</p>{m.steps.map((step, j) => <label className="mission-step" key={j}><input type="checkbox" checked={!!state?.missionSteps[m.id]?.[j]} disabled={!state || !!pending} onChange={(e) => write(() => store.setMissionStep(m.id, j, e.target.checked))}/><span>{step}</span></label>)}</article>)}</div></section>}
+          {route.view === 'missions' && <section className="content-page"><span className="eyebrow">{t('ИЗ ПРИЛОЖЕНИЯ — В РАЗГОВОР', 'FROM PRACTICE TO CONVERSATION')}</span><h1 id="page-title" tabIndex={-1}>{t('Маленькие дела.', 'Little actions.')}<br/>{t('Настоящее внимание.', 'Real attention.')}</h1><p className="lead">{t('Попробуйте, когда обоим комфортно. Отметка — ваша запись, а не оценка отношений.', 'Try these when you both feel comfortable. Checkmarks are your records, not relationship scores.')}</p><div className="missions-grid">{course.missions.map((m, i) => <article className="card mission" key={m.id} style={{ '--accent': accents[i] }}><span className="mission-icon" aria-hidden="true">{symbols[i]}</span><h2>{m.title}</h2><p>{m.description}</p>{m.steps.map((step, j) => <label className="mission-step" key={j}><input type="checkbox" checked={!!state?.missionSteps[m.id]?.[j]} disabled={!state || !!pending} onChange={(e) => write(() => store.setMissionStep(m.id, j, e.target.checked))}/><span>{step}</span></label>)}<button className="secondary" disabled={!!pending} onClick={() => go(`mission/${m.id}`)}>{t('Открыть пошагово', 'Open step by step')}</button></article>)}</div></section>}
+          {route.view === 'mission' && mission && <MissionDetail mission={mission} state={state} pending={pending} t={t} write={write} go={go}/>}
+
           {route.view === 'about' && <section className="content-page"><span className="eyebrow">{t('О ПОДХОДЕ', 'ABOUT THE APPROACH')}</span><h1 id="page-title" tabIndex={-1}>{t('О подходе', 'About the approach')}</h1><p className="lead">{t('Меньше догадок. Больше вопросов к конкретному человеку.', 'Fewer assumptions. More questions for the person in front of you.')}</p><p>{t('Это независимый образовательный тренажёр с оригинальными упражнениями. Он помогает практиковать слушание, ясные просьбы и восстановление разговора, но не оценивает отношения и не заменяет терапию.', 'This is an independent learning tool with original exercises. It helps you practise listening, clear requests and conversation repair, but it does not score relationships or replace therapy.')}</p><p className="muted">{t('При давлении, угрозах или страхе важнее безопасность и поддержка людей или служб, которым вы доверяете.', 'When there is pressure, threats or fear, safety and trusted support matter more than completing an exercise.')}</p></section>}
           {route.view === 'progress' && <section className="content-page"><span className="eyebrow">{t('ВАШ ПУТЬ, ВАШ ТЕМП', 'YOUR JOURNEY, YOUR PACE')}</span><h1 id="page-title" tabIndex={-1}>{t('Уже получается.', 'Look how far you’ve come.')}</h1><p className="lead">{t('Опыт за завершённые уроки — не оценка вас или ваших отношений.', 'Lesson experience is not a score for you or your relationship.')}</p>
             <div className="metric-grid"><div className="card"><span>✦</span><strong data-testid="xp-total">{stats ? stats.xp : '—'}</strong><p>{t('очков опыта', 'experience points')}</p></div><div className="card"><span>◉</span><strong>{stats ? `${stats.count}/${stats.total}` : '—'}</strong><p>{t('уроков завершено', 'lessons completed')}</p></div><div className="card"><span>☀</span><strong>{stats ? stats.streak : '—'}</strong><p>{t('дней подряд с новым уроком', 'consecutive days with a new lesson')}</p></div></div>
@@ -240,6 +240,47 @@ function App() {
       </main>
     </div>
   </div>;
+}
+function MissionDetail({ mission, state, pending, t, write, go }) {
+  const steps = state?.missionSteps?.[mission.id] || [];
+  const nextIndex = mission.steps.findIndex((_, index) => !steps[index]);
+  const complete = nextIndex < 0;
+  const current = complete ? mission.steps.length - 1 : nextIndex;
+
+  useEffect(() => {
+    document.getElementById('page-title')?.focus();
+  }, [mission.id, current, complete]);
+
+  const setStep = (index, value) => write(() => store.setMissionStep(mission.id, index, value));
+
+  return <section className="lesson-screen" data-testid="mission-detail">
+    <div className="lesson-top">
+      <button className="secondary" onClick={() => go('missions')}>← {t('К заданиям', 'Back to missions')}</button>
+      <span>{complete ? t('ЗАДАНИЕ ВЫПОЛНЕНО', 'MISSION COMPLETE') : `${t('ШАГ', 'STEP')} ${current + 1}/${mission.steps.length}`}</span>
+    </div>
+    <progress value={complete ? mission.steps.length : current} max={mission.steps.length} aria-label={t('Прогресс задания', 'Mission progress')}/>
+    <article className="lesson-card">
+      <span className="eyebrow">{t('ПРАКТИКА В ЖИЗНИ', 'REAL-LIFE PRACTICE')}</span>
+      <h1 id="page-title" tabIndex={-1}>{mission.title}</h1>
+      <p className="lead">{mission.description}</p>
+      {complete ? <div className="feedback success" role="status">
+        <span className="celebrate" aria-hidden="true">✦</span>
+        <h2>{t('Все три шага отмечены.', 'All three steps are checked.')}</h2>
+        <p>{t('Это ваша запись о практике, а не оценка отношений. При желании можно вернуться к последнему шагу.', 'This is your practice record, not a relationship score. You can return to the last step if you want.')}</p>
+        <div className="button-row">
+          <button className="secondary" disabled={!!pending || !state} onClick={() => setStep(mission.steps.length - 1, false)}>← {t('Вернуть последний шаг', 'Undo last step')}</button>
+          <button className="primary" onClick={() => go('missions')}>{t('К другим заданиям', 'Other missions')} →</button>
+        </div>
+      </div> : <>
+        <div className="principle"><span aria-hidden="true">{current + 1}</span><p data-testid="mission-step">{mission.steps[current]}</p></div>
+        <p className="muted">{t('Делайте шаг только в безопасной и добровольной ситуации. Можно остановиться и вернуться позже.', 'Take this step only in a safe, voluntary situation. You can stop and return later.')}</p>
+        <div className="button-row">
+          {current > 0 && <button className="secondary" disabled={!!pending || !state} onClick={() => setStep(current - 1, false)}>← {t('Вернуться к предыдущему шагу', 'Back to previous step')}</button>}
+          <button className="primary" disabled={!!pending || !state} onClick={() => setStep(current, true)}>{pending ? t('Сохраняем…', 'Saving…') : t('Отметить выполненным', 'Mark complete')} →</button>
+        </div>
+      </>}
+    </article>
+  </section>;
 }
 function Lesson({ lesson, mode, step, state, pending, t, write, notePanel, go }) {
   const [choice, setChoice] = useState(null);
