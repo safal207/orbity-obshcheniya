@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { GUIDED, learningRoute, nextLesson, resumeTarget, answerGuided } from '../navigation.mjs';
 const lessons = ['map-1', 'map-2', ...Object.values(GUIDED).flat()].map((id) => ({ id, moduleId: id.split('-')[0], quiz: { choices: ['no', 'yes'], correct: [1] } }));
+const missions = [{ id: 'check-in' }];
 const empty = () => ({ completed: {}, answers: {}, notes: {}, review: {}, missionSteps: {}, focusModule: null, currentLessonId: null, guidedFlow: null });
 // This fake models token-CAS only; real Web Locks are tested in Chromium.
 function harness(initial) {
@@ -25,7 +26,8 @@ test('legacy section links resolve to equivalent React destinations without prog
   assert.deepEqual(learningRoute('#review', lessons), { view: 'review', id: null });
   assert.deepEqual(learningRoute('#practice', lessons), { view: 'review', id: null });
   assert.deepEqual(learningRoute('#about', lessons), { view: 'about', id: null });
-  assert.deepEqual(learningRoute('#mission/check-in', lessons), { view: 'missions', id: null, missionId: 'check-in' });
+  assert.deepEqual(learningRoute('#mission/check-in', lessons, missions), { view: 'mission', id: null, missionId: 'check-in' });
+  assert.deepEqual(learningRoute('#mission/missing', lessons, missions), { view: 'missions', id: null });
   assert.deepEqual(learningRoute('#module/needs', lessons), { view: 'path', id: null, moduleId: 'needs' });
   assert.deepEqual(learningRoute('#module/missing', lessons), { view: 'path', id: null });
 });
