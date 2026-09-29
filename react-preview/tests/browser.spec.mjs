@@ -128,10 +128,45 @@ test('invalid import is rejected before confirmation; valid backup repairs corru
 
 test('mission checkbox is saved and shared with English without completing lessons', async ({ page }) => {
   await page.goto('/#missions');
-  await page.locator('.mission-step input').first().check();
-  await expect(page.locator('.mission-step input').first()).toBeChecked();
+  // A controlled checkbox acknowledges persistence, not the transient click.
+  // Hold the real origin lock to prove no successful UI state appears early.
+  await page.evaluate((key) => {
+    window.lockReady = false;
+    navigator.locks.request(key, () => { window.lockReady = true; return new Promise((resolve) => { window.releaseTestLock = resolve; }); });
+  }, KEY);
+  await expect.poll(() => page.evaluate(() => window.lockReady)).toBe(true);
+  const checkbox = page.locator('.mission-step input').first();
+  await checkbox.click();
+  await expect(checkbox).toBeDisabled();
+  await expect(checkbox).not.toBeChecked();
+  expect(await read(page)).toBeNull();
+  await page.evaluate(() => window.releaseTestLock());
+  await expect.poll(async () => (await read(page))?.missionSteps?.['listen-ten']?.[0]).toBe(true);
+  await expect(checkbox).toBeChecked();
   await page.getByRole('button', { name: 'Switch to English' }).click();
   await expect(page.locator('.mission-step input').first()).toBeChecked();
   expect((await read(page)).missionSteps['listen-ten'][0]).toBe(true);
+  await expect(page.getByTestId('xp')).toContainText('0 XP');
+});
+
+
+test('failed mission persistence leaves checkbox and stored progress unchanged', async ({ page }) => {
+  await page.goto('/#missions');
+  await page.evaluate(() => { Storage.prototype.setItem = () => { throw new Error('Test mission write fault'); }; });
+  await page.locator('.mission-step input').first().click();
+  await expect(page.getByRole('alert')).toContainText('Не удалось');
+  await expect(page.locator('.mission-step input').first()).not.toBeChecked();
+  expect(await read(page)).toBeNull();
+  await expect(page.getByTestId('xp')).toContainText('0 XP');
+});
+
+test('missing Web Locks fails closed without successful completion', async ({ page }) => {
+  await quiz(page, 'map-1');
+  await page.evaluate(() => Object.defineProperty(navigator, 'locks', { configurable: true, value: undefined }));
+  await page.locator('.choice').nth(1).click();
+  await page.getByRole('button', { name: 'Проверить ответ' }).click();
+  await expect(page.getByRole('alert')).toContainText('Web Locks');
+  await expect(page.locator('.feedback.success')).toHaveCount(0);
+  expect(await read(page)).toBeNull();
   await expect(page.getByTestId('xp')).toContainText('0 XP');
 });
