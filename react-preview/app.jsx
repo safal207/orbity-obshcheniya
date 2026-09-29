@@ -80,7 +80,11 @@ function App() {
     document.getElementById('page-title')?.focus();
     const selected = ru.lessons.find((l) => l.id === route.id);
     if (selected) setModuleId(selected.moduleId);
-  }, [route.view, route.id, loaded]);
+    else if (route.moduleId && ru.modules.some((m) => m.id === route.moduleId)) setModuleId(route.moduleId);
+    if (route.view === 'missions' && route.missionId) {
+      document.getElementById(`mission-${route.missionId}`)?.focus({ preventScroll: true });
+    }
+  }, [route.view, route.id, route.moduleId, route.missionId, loaded]);
   useEffect(() => {
     if (!loaded || !state || restoredModule.current) return;
     restoredModule.current = true;
@@ -172,8 +176,9 @@ function App() {
   const unitIndex = course.modules.indexOf(module);
   const unitLessons = course.lessons.filter((l) => l.moduleId === module.id);
   const next = unitLessons.find((l) => !state?.completed[l.id]) || unitLessons[0];
-  const lesson = course.lessons.find((l) => l.id === route.id);
+  const selectedLesson = course.lessons.find((l) => l.id === route.id);
   const review = stats?.due[0] || course.lessons.find((l) => state?.completed[l.id]) || next;
+  const lesson = route.view === 'review' ? review : selectedLesson;
   const resume = resumeTarget(state, course.lessons);
   const savedNext = nextLesson(state, course.lessons);
   const guidedTopic = route.topic || state?.guidedFlow?.topic;
@@ -221,8 +226,9 @@ function App() {
             </aside></div>}
           {route.view === 'start' && <TopicPicker state={state} pending={pending} t={t} start={start}/>}
           {route.view === 'guided' && (guidedTopic ? <Guided key={guidedTopic} topic={guidedTopic} state={state} course={course} store={store} pending={pending} t={t} write={write} notePanel={notePanel} go={go}/> : <TopicPicker state={state} pending={pending} t={t} start={start}/>)}
-          {lesson && <Lesson key={`${route.view}/${lesson.id}`} lesson={lesson} mode={route.view} step={route.step ?? 2} state={state} pending={pending} t={t} write={write} notePanel={notePanel} go={go}/>}
-          {route.view === 'missions' && <section className="content-page"><span className="eyebrow">{t('ИЗ ПРИЛОЖЕНИЯ — В РАЗГОВОР', 'FROM PRACTICE TO CONVERSATION')}</span><h1 id="page-title" tabIndex={-1}>{t('Маленькие дела.', 'Little actions.')}<br/>{t('Настоящее внимание.', 'Real attention.')}</h1><p className="lead">{t('Попробуйте, когда обоим комфортно. Отметка — ваша запись, а не оценка отношений.', 'Try these when you both feel comfortable. Checkmarks are your records, not relationship scores.')}</p><div className="missions-grid">{course.missions.map((m, i) => <article className="card mission" key={m.id} style={{ '--accent': accents[i] }}><span className="mission-icon" aria-hidden="true">{symbols[i]}</span><h2>{m.title}</h2><p>{m.description}</p>{m.steps.map((step, j) => <label className="mission-step" key={j}><input type="checkbox" checked={!!state?.missionSteps[m.id]?.[j]} disabled={!state || !!pending} onChange={(e) => write(() => store.setMissionStep(m.id, j, e.target.checked))}/><span>{step}</span></label>)}</article>)}</div></section>}
+          {lesson && <Lesson key={`${route.view}/${lesson.id}`} lesson={lesson} mode={route.view === 'review' ? 'practice' : route.view} step={route.step ?? 2} state={state} pending={pending} t={t} write={write} notePanel={notePanel} go={go}/>}
+          {route.view === 'missions' && <section className="content-page"><span className="eyebrow">{t('ИЗ ПРИЛОЖЕНИЯ — В РАЗГОВОР', 'FROM PRACTICE TO CONVERSATION')}</span><h1 id="page-title" tabIndex={-1}>{t('Маленькие дела.', 'Little actions.')}<br/>{t('Настоящее внимание.', 'Real attention.')}</h1><p className="lead">{t('Попробуйте, когда обоим комфортно. Отметка — ваша запись, а не оценка отношений.', 'Try these when you both feel comfortable. Checkmarks are your records, not relationship scores.')}</p><div className="missions-grid">{course.missions.map((m, i) => <article id={`mission-${m.id}`} tabIndex={route.missionId === m.id ? -1 : undefined} className="card mission" key={m.id} style={{ '--accent': accents[i] }}><span className="mission-icon" aria-hidden="true">{symbols[i]}</span><h2>{m.title}</h2><p>{m.description}</p>{m.steps.map((step, j) => <label className="mission-step" key={j}><input type="checkbox" checked={!!state?.missionSteps[m.id]?.[j]} disabled={!state || !!pending} onChange={(e) => write(() => store.setMissionStep(m.id, j, e.target.checked))}/><span>{step}</span></label>)}</article>)}</div></section>}
+          {route.view === 'about' && <section className="content-page"><span className="eyebrow">{t('О ПОДХОДЕ', 'ABOUT THE APPROACH')}</span><h1 id="page-title" tabIndex={-1}>{t('О подходе', 'About the approach')}</h1><p className="lead">{t('Меньше догадок. Больше вопросов к конкретному человеку.', 'Fewer assumptions. More questions for the person in front of you.')}</p><p>{t('Это независимый образовательный тренажёр с оригинальными упражнениями. Он помогает практиковать слушание, ясные просьбы и восстановление разговора, но не оценивает отношения и не заменяет терапию.', 'This is an independent learning tool with original exercises. It helps you practise listening, clear requests and conversation repair, but it does not score relationships or replace therapy.')}</p><p className="muted">{t('При давлении, угрозах или страхе важнее безопасность и поддержка людей или служб, которым вы доверяете.', 'When there is pressure, threats or fear, safety and trusted support matter more than completing an exercise.')}</p></section>}
           {route.view === 'progress' && <section className="content-page"><span className="eyebrow">{t('ВАШ ПУТЬ, ВАШ ТЕМП', 'YOUR JOURNEY, YOUR PACE')}</span><h1 id="page-title" tabIndex={-1}>{t('Уже получается.', 'Look how far you’ve come.')}</h1><p className="lead">{t('Опыт за завершённые уроки — не оценка вас или ваших отношений.', 'Lesson experience is not a score for you or your relationship.')}</p>
             <div className="metric-grid"><div className="card"><span>✦</span><strong data-testid="xp-total">{stats ? stats.xp : '—'}</strong><p>{t('очков опыта', 'experience points')}</p></div><div className="card"><span>◉</span><strong>{stats ? `${stats.count}/${stats.total}` : '—'}</strong><p>{t('уроков завершено', 'lessons completed')}</p></div><div className="card"><span>☀</span><strong>{stats ? stats.streak : '—'}</strong><p>{t('дней подряд с новым уроком', 'consecutive days with a new lesson')}</p></div></div>
             <p className="muted">{t('Серия учитывает только первое завершение урока по местной дате. Повторы не добавляют XP. Паузы не отнимают накопленный опыт.', 'The series counts only first lesson completions by local date. Replays do not add XP. Breaks never remove earned experience.')}</p>
