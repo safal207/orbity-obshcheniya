@@ -35,6 +35,9 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Real-browser acceptance
         run: npm run test:browser
+      - name: Archive exact tested source
+        if: always()
+        run: git archive --format=tar.gz --output=source-tested.tar.gz HEAD
       - name: Export isolated preview and verification artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -43,6 +46,7 @@ jobs:
           retention-days: 7
           path: |
             react-preview/build/
+            react-preview/source-tested.tar.gz
             react-preview/package-lock.json
             react-preview/test-results/
             react-preview/playwright-report/

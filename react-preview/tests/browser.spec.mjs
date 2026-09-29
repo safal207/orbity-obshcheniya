@@ -55,12 +55,13 @@ test('full lessons persist once; wrong answers and practice do not award complet
 
 test('storage write failure cannot display lesson success or increase XP', async ({ page }) => {
   await quiz(page, 'map-1');
+  const before = await read(page); // Navigating has saved a bookmark, not completion.
   await page.evaluate(() => { Storage.prototype.setItem = () => { throw new DOMException('Test quota fault', 'QuotaExceededError'); }; });
   await page.locator('.choice').nth(1).click(); await page.getByRole('button', { name: 'Проверить ответ' }).click();
   await expect(page.getByRole('alert')).toContainText('Не удалось');
   await expect(page.locator('.feedback.success')).toHaveCount(0);
   await expect(page.getByTestId('xp')).toContainText('0 XP');
-  expect(await read(page)).toBeNull();
+  expect(await read(page)).toEqual(before);
 });
 
 test('failed note draft survives RU/EN and SPA navigation; import is blocked', async ({ page }) => {
@@ -162,11 +163,12 @@ test('failed mission persistence leaves checkbox and stored progress unchanged',
 
 test('missing Web Locks fails closed without successful completion', async ({ page }) => {
   await quiz(page, 'map-1');
+  const before = await read(page); // The bookmark is allowed; false completion is not.
   await page.evaluate(() => Object.defineProperty(navigator, 'locks', { configurable: true, value: undefined }));
   await page.locator('.choice').nth(1).click();
   await page.getByRole('button', { name: 'Проверить ответ' }).click();
   await expect(page.getByRole('alert')).toContainText('Web Locks');
   await expect(page.locator('.feedback.success')).toHaveCount(0);
-  expect(await read(page)).toBeNull();
+  expect(await read(page)).toEqual(before);
   await expect(page.getByTestId('xp')).toContainText('0 XP');
 });
