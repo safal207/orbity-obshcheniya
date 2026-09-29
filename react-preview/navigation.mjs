@@ -8,7 +8,7 @@ export const GUIDED = Object.freeze({
 });
 const fail = (code) => { throw Object.assign(new Error(code), { code }); };
 
-export function learningRoute(hash, lessons) {
+export function learningRoute(hash, lessons, missions = []) {
   const parts = hash.replace(/^#/, '').split('/');
   if (parts[0] === 'start') return { view: 'start', id: null };
   if (parts[0] === 'guided' && (parts.length === 1 || Object.hasOwn(GUIDED, parts[1]) || /^[0-2]$/.test(parts[1]))) {
@@ -20,7 +20,11 @@ export function learningRoute(hash, lessons) {
   // not mutate progress: they only choose the closest React screen.
   if (parts[0] === 'review' || (parts[0] === 'practice' && !parts[1])) return { view: 'review', id: null };
   if (parts[0] === 'about') return { view: 'about', id: null };
-  if (parts[0] === 'mission') return { view: 'missions', id: null, missionId: parts[1] || null };
+  if (parts[0] === 'mission') {
+    return missions.some((mission) => mission.id === parts[1])
+      ? { view: 'mission', id: null, missionId: parts[1] }
+      : { view: 'missions', id: null };
+  }
   if (parts[0] === 'module' && lessons.some((lesson) => lesson.moduleId === parts[1])) {
     return { view: 'path', id: null, moduleId: parts[1] };
   }
