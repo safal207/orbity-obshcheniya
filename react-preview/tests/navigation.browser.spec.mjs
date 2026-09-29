@@ -1,5 +1,9 @@
 import { test, expect } from '@playwright/test';
-import { lessons } from '../../dist/course.js';
+import { readFileSync } from 'node:fs';
+// The legacy course is browser ESM inside a CommonJS package. Load its exact
+// checked-in bytes as ESM for Node; do not reclassify production files or copy data.
+const courseSource = readFileSync(new URL('../../dist/course.js', import.meta.url), 'utf8');
+const { lessons } = await import(`data:text/javascript;base64,${Buffer.from(courseSource).toString('base64')}`);
 import { GUIDED } from '../navigation.mjs';
 const KEY = 'orbity-dialoga-progress-v1';
 const empty = () => ({ completed: {}, answers: {}, notes: {}, review: {}, missionSteps: {}, focusModule: null, currentLessonId: null, guidedFlow: null });

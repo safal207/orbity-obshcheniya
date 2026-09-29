@@ -37,7 +37,7 @@ jobs:
         run: npm run test:browser
       - name: Archive exact tested source
         if: always()
-        run: git archive --format=tar.gz --output=source-tested.tar.gz HEAD
+        run: git -C .. archive --format=tar.gz --output=react-preview/source-tested.tar.gz HEAD
       - name: Export isolated preview and verification artifacts
         if: always()
         uses: actions/upload-artifact@v4
