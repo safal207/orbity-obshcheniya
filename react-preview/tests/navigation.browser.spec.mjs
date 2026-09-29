@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 // The legacy course is browser ESM inside a CommonJS package. Load its exact
 // checked-in bytes as ESM for Node; do not reclassify production files or copy data.
 const courseSource = readFileSync(new URL('../../dist/course.js', import.meta.url), 'utf8');
-const { lessons } = await import(`data:text/javascript;base64,${Buffer.from(courseSource).toString('base64')}`);
+const { lessons, missions } = await import(`data:text/javascript;base64,${Buffer.from(courseSource).toString('base64')}`);
 import { GUIDED } from '../navigation.mjs';
 const KEY = 'orbity-dialoga-progress-v1';
 const empty = () => ({ completed: {}, answers: {}, notes: {}, review: {}, missionSteps: {}, focusModule: null, currentLessonId: null, guidedFlow: null });
@@ -96,6 +96,26 @@ test('queued old answer cannot advance a topic changed in another tab', async ({
   expect((await read(page)).guidedFlow).toEqual({ topic: 'conflict', step: 0 });
   expect((await read(page)).completed).toEqual({});
 });
+test('legacy review, module, mission and about links stay useful in React', async ({ page }) => {
+  const state = { ...empty(), completed: { 'map-1': 1000 }, review: { 'map-1': 1 } };
+  await seed(page, state);
+
+  await page.goto('/#review');
+  await expect(page.locator('.lesson-top')).toContainText('ПРАКТИКА');
+  expect((await read(page)).completed).toEqual({ 'map-1': 1000 });
+
+  await page.goto('/#module/needs');
+  await expect(page.locator('#unit')).toHaveValue('needs');
+
+  const mission = missions[0];
+  await page.goto(`/#mission/${mission.id}`);
+  await expect(page.locator(`#mission-${mission.id}`)).toBeFocused();
+
+  await page.goto('/#about');
+  await expect(page.getByRole('heading', { name: 'О подходе' })).toBeVisible();
+  expect((await read(page)).completed).toEqual({ 'map-1': 1000 });
+});
+
 test('saved legacy lesson and module resume without erasing any progress maps', async ({ page }) => {
   const state = { ...empty(), currentLessonId: 'needs-2', focusModule: 'needs', notes: { 'map-1': 'KEEP THIS NOTE' }, completed: { 'map-1': 1000 } };
   await seed(page, state); await page.goto('/');
