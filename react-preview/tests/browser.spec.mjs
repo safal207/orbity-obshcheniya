@@ -89,6 +89,28 @@ test('failed note draft survives RU/EN and SPA navigation; import is blocked', a
   expect(confirmations).toBe(0);
 });
 
+test('2000-character note survives autosave, RU/EN and reload at 320px', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  const note = await openNote(page, 'map-1');
+  const value = ('Длинная заметка · useful reflection · 0123456789\n').repeat(60).slice(0, 2000);
+  expect(value.length).toBe(2000);
+
+  await note.fill(value);
+  await expect(page.locator('.save-state')).toContainText('Сохранено');
+  expect((await read(page)).notes['map-1']).toBe(value);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+
+  await page.getByRole('button', { name: 'Switch to English' }).click();
+  await expect(note).toHaveValue(value);
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+
+  await page.reload();
+  await expect(page.locator('textarea')).toHaveValue(value);
+  expect((await read(page)).notes['map-1']).toBe(value);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
 test('two RU/EN tabs retain independent note edits', async ({ context, page }) => {
   const second = await context.newPage();
   const a = await openNote(page, 'map-1');
