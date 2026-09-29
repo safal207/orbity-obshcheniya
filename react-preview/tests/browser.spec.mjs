@@ -5,12 +5,19 @@ const read = (page) => page.evaluate((key) => JSON.parse(localStorage.getItem(ke
 async function openNote(page, id, english = false) {
   await page.goto(`${english ? '/?lang=en' : '/'}#lesson/${id}`);
   await page.getByRole('button', { name: english ? 'Let’s try it' : 'Попробуем', exact: false }).click();
-  return page.locator('textarea');
+  const note = page.locator('textarea');
+  // Enter the note screen before injecting a note-write fault or holding a lock.
+  // A click is not evidence that asynchronous bookmark persistence has finished.
+  await expect(note).toBeVisible();
+  await expect(note).toBeEnabled();
+  return note;
 }
 async function quiz(page, id) {
   await page.goto(`/#lesson/${id}`);
   await page.getByRole('button', { name: 'Попробуем' }).click();
   await page.getByRole('button', { name: 'Проверить понимание' }).click();
+  await expect(page.locator('.choice').first()).toBeVisible();
+  await expect(page.locator('.choice').first()).toBeEnabled();
 }
 
 for (const width of [320, 390, 768, 1280]) {
