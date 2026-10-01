@@ -37,13 +37,17 @@ jobs:
         run: python -m playwright install --with-deps chromium
       - name: Native two-tab save, conflict and reload acceptance
         run: python tests/pr2-browser/acceptance.py
+      - name: Injected lesson write failure and retry acceptance (RU and EN)
+        run: python tests/pr2-browser/write_failure.py
+      - name: Corrupt storage and valid backup recovery acceptance (RU and EN)
+        run: python tests/pr2-browser/recovery.py
       - name: Preserve source and environment evidence
         if: always()
         run: |
           mkdir -p pr2-browser-artifacts
           python -m pip freeze --all > pr2-browser-artifacts/python-environment.txt
           git -C .pr2-browser-source archive --format=tar.gz --output="$GITHUB_WORKSPACE/pr2-browser-artifacts/source-tested.tar.gz" HEAD
-          sha256sum tests/pr2-browser/acceptance.py tests/pr2-browser/requirements.txt .github/workflows/pr2-browser.yml > pr2-browser-artifacts/harness-sha256.txt
+          sha256sum tests/pr2-browser/acceptance.py tests/pr2-browser/write_failure.py tests/pr2-browser/recovery.py tests/pr2-browser/requirements.txt .github/workflows/pr2-browser.yml > pr2-browser-artifacts/harness-sha256.txt
       - name: Upload the actual result, states and trace
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
