@@ -1,0 +1,59 @@
+name: PR2 legacy browser acceptance
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+permissions:
+  contents: read
+concurrency:
+  group: pr2-legacy-browser-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  two-tabs:
+    if: github.event.pull_request.number == 2 && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      HARNESS_SHA: ${{ github.event.pull_request.head.sha }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - name: Check out the exact PR harness head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Check out the exact legacy application, not a synthetic merge
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: 5a5f4c2c71a5474e82c9fef22ad32bb302cf7602
+          path: .pr2-browser-source
+          persist-credentials: false
+      - name: Install isolated browser test tools
+        run: |
+          python3 -m venv "$RUNNER_TEMP/pr2-browser-venv"
+          echo "$RUNNER_TEMP/pr2-browser-venv/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/pr2-browser-venv/bin/python" -m pip install --disable-pip-version-check -r tests/pr2-browser/requirements.txt
+      - name: Install real Chromium
+        run: python -m playwright install --with-deps chromium
+      - name: Native two-tab save, conflict and reload acceptance
+        run: python tests/pr2-browser/acceptance.py
+      - name: Injected lesson write failure and retry acceptance (RU and EN)
+        run: python tests/pr2-browser/write_failure.py
+      - name: Corrupt storage and valid backup recovery acceptance (RU and EN)
+        run: python tests/pr2-browser/recovery.py
+      - name: Preserve source and environment evidence
+        if: always()
+        run: |
+          mkdir -p pr2-browser-artifacts
+          python -m pip freeze --all > pr2-browser-artifacts/python-environment.txt
+          git -C .pr2-browser-source archive --format=tar.gz --output="$GITHUB_WORKSPACE/pr2-browser-artifacts/source-tested.tar.gz" HEAD
+          sha256sum tests/pr2-browser/acceptance.py tests/pr2-browser/write_failure.py tests/pr2-browser/recovery.py tests/pr2-browser/requirements.txt .github/workflows/pr2-browser.yml > pr2-browser-artifacts/harness-sha256.txt
+      - name: Upload the actual result, states and trace
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: pr2-browser-${{ github.event.pull_request.head.sha }}-${{ github.run_attempt }}
+          path: pr2-browser-artifacts/
+          if-no-files-found: error
+          retention-days: 7
+# Read-only workflow: no Pages job, no id-token permission, no production data.
