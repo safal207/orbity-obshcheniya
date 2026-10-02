@@ -201,3 +201,78 @@ test('missing Web Locks fails closed without successful completion', async ({ pa
   expect(await read(page)).toEqual(before);
   await expect(page.getByTestId('xp')).toContainText('0 XP');
 });
+
+
+test('exported backup round-trips exact saved state through RU/EN UI', async ({ page }) => {
+  const source = {
+    ...empty(),
+    completed: { 'map-1': 1000 },
+    answers: { 'map-1': 1 },
+    notes: { 'map-1': 'ROUNDTRIP SYNTHETIC NOTE' },
+    review: { 'map-1': 2000 },
+    missionSteps: { 'listen-ten': [true, false, false] },
+    focusModule: 'needs',
+    currentLessonId: 'needs-1',
+    guidedFlow: { topic: 'needs', step: 1 },
+  };
+
+  // Seed one complete valid v1 state, then exercise only the real export/import UI.
+  await page.goto('/');
+  await page.evaluate(({ key, state }) => localStorage.setItem(key, JSON.stringify(state)), { key: KEY, state: source });
+  await page.reload();
+  await page.getByRole('button', { name: 'Прогресс', exact: true }).click();
+
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByRole('button', { name: 'Скачать копию', exact: true }).click(),
+  ]);
+  expect(download.suggestedFilename()).toBe('orbity-progress-v1.json');
+  const stream = await download.createReadStream();
+  const chunks = [];
+  for await (const chunk of stream) chunks.push(chunk);
+  const exportedRaw = Buffer.concat(chunks).toString('utf8');
+  const exported = JSON.parse(exportedRaw);
+  expect(exported.version).toBe(1);
+  expect(Number.isFinite(Date.parse(exported.savedAt))).toBe(true);
+  const { version, savedAt, ...exportedState } = exported;
+  expect(exportedState).toEqual(source);
+  await expect(page.locator('.notice')).toContainText('Экспортирован сохранённый прогресс');
+
+  // Replace storage with a different valid state so restore must actually write.
+  await page.evaluate(({ key, state }) => localStorage.setItem(key, JSON.stringify(state)), { key: KEY, state: empty() });
+  await page.reload();
+  expect(await read(page)).toEqual(empty());
+
+  let confirmation = '';
+  page.once('dialog', async (dialog) => {
+    confirmation = dialog.message();
+    await dialog.accept();
+  });
+  await page.locator('input[type=file]').setInputFiles({
+    name: download.suggestedFilename(),
+    mimeType: 'application/json',
+    buffer: Buffer.from(exportedRaw),
+  });
+  await expect(page.locator('.notice')).toContainText('Резервная копия восстановлена');
+  expect(confirmation).toContain('Заменить сохранённый прогресс');
+  expect(await read(page)).toEqual(source);
+
+  // RU and EN must observe the same restored maps and continuation cursor.
+  await page.getByRole('button', { name: 'Маршрут', exact: true }).click();
+  await expect(page.getByTestId('resume-label')).toContainText('Сохранён вопрос 2/3');
+  await page.getByRole('button', { name: 'Switch to English' }).click();
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+  await expect(page.getByTestId('resume-label')).toContainText('Saved question 2/3');
+  expect(await read(page)).toEqual(source);
+
+  await page.getByTestId('resume').click();
+  await expect(page).toHaveURL(/#guided\/needs$/);
+  await expect(page.locator('.lesson-top')).toContainText('QUESTION 2/3');
+  await page.reload();
+  expect(await read(page)).toEqual(source);
+  expect((await read(page)).missionSteps['listen-ten']).toEqual([true, false, false]);
+  expect((await read(page)).notes['map-1']).toBe('ROUNDTRIP SYNTHETIC NOTE');
+  expect((await read(page)).completed).toEqual({ 'map-1': 1000 });
+  expect((await read(page)).currentLessonId).toBe('needs-1');
+  expect((await read(page)).guidedFlow).toEqual({ topic: 'needs', step: 1 });
+});
