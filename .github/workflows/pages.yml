@@ -10,9 +10,10 @@ permissions:
   contents: read
 
 concurrency:
-  # PR validation must never replace a pending main-branch publication.
-  group: ${{ github.event_name == 'pull_request' && format('orbity-pr-{0}', github.event.pull_request.number) || 'github-pages' }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  # Only a real main-branch publication may share the Pages queue.
+  # PRs and manual feature-branch runs use branch/ref-scoped validation queues.
+  group: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && 'github-pages' || format('orbity-{0}', github.ref) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.ref != 'refs/heads/main' }}
 
 jobs:
   validate:
