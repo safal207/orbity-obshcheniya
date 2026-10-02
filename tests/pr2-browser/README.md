@@ -2,7 +2,7 @@
 
 Two bounded checks use native Chromium and Web Locks in isolated contexts: the original two-tab scenario and a lesson write-rejection scenario repeated in RU and EN.
 The runner tests the exact application commit `5a5f4c2c71a5474e82c9fef22ad32bb302cf7602`, not React or the GitHub synthetic merge.
-The harness is checked out from the current PR #2 head. Before browser navigation it compares every one of the 18 original files with the target checkout and with the current head. A changed original file fails the gate instead of silently validating a stale target.
+The harness is checked out from the current PR #2 head. Before browser navigation it verifies all 18 files in the exact target checkout, and separately requires the 9 served runtime files (`dist/**` plus `server.mjs`) to remain byte-identical in the current PR head. Workflow, documentation and test-harness files may evolve without invalidating otherwise exact browser evidence.
 
 The scenario completes two distinct lessons through the UI, queues independent note saves behind a real origin lock, verifies no premature write, releases the lock and reloads both tabs. It then queues two edits of the same note, requires an explicit conflict, archives the losing synthetic draft before reload, and checks the accepted saved value in both reloaded UIs. Note transactions must leave all other persisted fields unchanged. Practice actions used to reopen notes may legitimately update review timestamps.
 
