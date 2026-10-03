@@ -16,6 +16,7 @@ progress::-moz-progress-bar{background:#7762c6}
 .hero .eyebrow,.hero p,.hero .muted{color:#e5dfff}
 .hero .eyebrow{letter-spacing:.09em}
 .hero .button-row{gap:12px}
+.hero [data-testid="resume-label"]{margin-top:18px;margin-bottom:0;font-size:.8rem}
 .hero .primary{border-color:#b9a6fc;background:#6650ce;box-shadow:0 4px 0 #100c24}
 .hero .primary:hover{background:#5842bb}
 .hero .primary span{margin-left:6px}
