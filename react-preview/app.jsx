@@ -160,7 +160,7 @@ function App() {
         'Replace saved progress with this backup? Lessons, notes and missions will be replaced.'))) return;
       if (hasDrafts()) throw Object.assign(new Error('UNSAVED'), { code: 'UNSAVED' });
       if (await write(() => store.replace(prepared.imported, prepared.token))) {
-        if (prepared.imported.focusModule) setModuleId(prepared.imported.focusModule);
+        setModuleId(prepared.imported.focusModule ?? ru.modules[0].id);
         setNotice(t('Резервная копия восстановлена.', 'Backup restored.'));
       }
     } catch (e) { setError(e.code || 'INVALID_FILE'); }
