@@ -7,6 +7,8 @@ import { metrics, prepareImport, backupJSON } from './model.mjs';
 import { learningRoute, resumeTarget, nextLesson } from './navigation.mjs';
 import { TopicPicker, Guided } from './guided.jsx';
 import './style.css';
+import './lumi.css';
+import { Lumi, LumiPortrait } from './lumi.jsx';
 
 const store = createProgressStore({ lessons: ru.lessons, missions: ru.missions });
 const accents = ['#b7c6ff', '#c9ee92', '#ffcf88', '#d8bdff', '#ffbab6', '#a9e6dd', '#f4bde7', '#cbdc9f'];
@@ -22,9 +24,6 @@ const errorCopy = {
   FLOW_CONFLICT: ['Тема или данные изменились в другой вкладке. Ответ не сохранён. Продолжите с актуального вопроса или выберите тему снова.', 'The topic or data changed in another tab. Your answer was not saved. Continue from the current question or choose a topic again.'],
   UNSAVED: ['Сначала сохраните или скопируйте несохранённые заметки. Импорт пока заблокирован.', 'Save or copy unsaved notes first. Import is blocked while drafts exist.'],
 };
-function Mascot() {
-  return <div className="mascot" aria-hidden="true"><span className="satellite">✦</span><span className="planet"><i/><i/><b/></span><span className="orbit"/></div>;
-}
 function App() {
   const [lang, setLang] = useState(new URLSearchParams(location.search).get('lang') === 'en' ? 'en' : 'ru');
   const t = (a, b) => lang === 'ru' ? a : b;
@@ -180,14 +179,15 @@ function App() {
   const resume = resumeTarget(state, course.lessons);
   const savedNext = nextLesson(state, course.lessons);
   const guidedTopic = route.topic || state?.guidedFlow?.topic;
+  const activeNav = ['lesson', 'practice', 'review', 'start', 'guided'].includes(route.view) ? 'path' : route.view === 'mission' ? 'missions' : route.view;
   const nav = [['path', '✦', t('Маршрут', 'Learn')], ['missions', '◎', t('В жизни', 'Real life')], ['progress', '▥', t('Прогресс', 'Progress')]];
   return <div className="app-shell">
     <a className="skip" href="#main-content" onClick={(e) => { e.preventDefault(); document.getElementById('main-content')?.focus(); }}>{t('К содержанию', 'Skip to content')}</a>
     <aside className="sidebar">
       <a className="brand" href="#path"><span className="brand-icon">◉</span><span>{t('орбиты', 'orbits')}<small>{t('общения', 'of conversation')}</small></span></a>
       <nav aria-label={t('Основная навигация', 'Main navigation')}>{nav.map(([id, icon, name]) =>
-        <button key={id} className={`nav-item ${route.view === id || id === 'path' && (lesson || ['start', 'guided'].includes(route.view)) || id === 'missions' && route.view === 'mission' ? 'active' : ''}`}
-          aria-current={route.view === id || id === 'missions' && route.view === 'mission' ? 'page' : undefined} onClick={() => go(id)}><span aria-hidden="true">{icon}</span>{name}</button>)}</nav>
+        <button key={id} className={`nav-item ${activeNav === id ? 'active' : ''}`}
+          aria-current={activeNav === id ? 'page' : undefined} onClick={() => go(id)}><span aria-hidden="true">{icon}</span>{name}</button>)}</nav>
       <div className="sidebar-note"><span>✦</span><p>{t('Не идеальные слова. Настоящее внимание.', 'Not perfect words. Real attention.')}</p></div>
       <small className="preview-label">REACT PREVIEW · 0.1</small>
     </aside>
@@ -197,7 +197,7 @@ function App() {
         <button className="language" onClick={() => setLang(lang === 'ru' ? 'en' : 'ru')} aria-label={t('Switch to English', 'Переключить на русский')}>{lang === 'ru' ? 'EN' : 'RU'}</button>
       </header>
       <main id="main-content" tabIndex={-1}>
-        {error && <div className="alert" role="alert"><p>{explain(error)}</p><button className="secondary" onClick={refresh}>{t('Проверить снова', 'Check again')}</button><button className="secondary" onClick={() => go('progress')}>{t('Резервная копия', 'Backup')}</button></div>}
+        {error && <div className="alert" role="alert"><LumiPortrait mood="support"/><p>{explain(error)}</p><button className="secondary" onClick={refresh}>{t('Проверить снова', 'Check again')}</button><button className="secondary" onClick={() => go('progress')}>{t('Резервная копия', 'Backup')}</button></div>}
         {notice && <p className="notice" role="status">{notice}</p>}
         {!loaded ? <p role="status">{t('Читаем ваш прогресс…', 'Reading your progress…')}</p> : <>
           {route.view === 'path' && <div className="dashboard">
@@ -207,7 +207,7 @@ function App() {
               <div className="button-row"><button className="primary" data-testid="resume" disabled={!resume || !!pending} onClick={() => go(resume)}>{state?.guidedFlow ? t('Продолжить знакомство', 'Continue the introduction') : t('Продолжить путь', 'Continue your journey')} <span aria-hidden="true">→</span></button>
                 <button className="secondary" onClick={() => go('start')}>{t('Выбрать ситуацию', 'Choose a situation')}</button></div>
               {state && <p className="muted" data-testid="resume-label">{state.guidedFlow ? state.guidedFlow.step < 3 ? `${t('Сохранён вопрос', 'Saved question')} ${state.guidedFlow.step + 1}/3` : t('Три вопроса готовы — откройте результат.', 'Three questions are ready — open the result.') : savedNext ? `${t('Следующий урок', 'Next lesson')}: ${savedNext.title}` : t('Все уроки пройдены.', 'All lessons completed.')}</p>}
-            </div><Mascot/></section>
+            </div><Lumi t={t} hero mood={error ? 'support' : 'idle'} message={error ? t('Сначала разберёмся с сообщением выше.', 'Let’s address the message above first.') : undefined}/></section>
               <div className="unit-picker"><label htmlFor="unit">{t('Ваша орбита', 'Your orbit')}</label><select id="unit" value={module.id} onChange={(e) => setModuleId(e.target.value)}>{course.modules.map((m, i) => <option key={m.id} value={m.id}>{String(i + 1).padStart(2, '0')} · {m.title}</option>)}</select></div>
               <section className="unit" style={{ '--accent': accents[unitIndex] }} aria-labelledby="unit-title"><div className="unit-header"><span className="unit-symbol" aria-hidden="true">{symbols[unitIndex]}</span><div><span className="eyebrow">{t('ОРБИТА', 'ORBIT')} {unitIndex + 1} / {course.modules.length}</span><h2 id="unit-title">{module.title}</h2><p>{module.description}</p></div></div>
                 <ol className="lesson-path">{unitLessons.map((l, i) => {
@@ -230,6 +230,7 @@ function App() {
 
           {route.view === 'about' && <section className="content-page"><span className="eyebrow">{t('О ПОДХОДЕ', 'ABOUT THE APPROACH')}</span><h1 id="page-title" tabIndex={-1}>{t('О подходе', 'About the approach')}</h1><p className="lead">{t('Меньше догадок. Больше вопросов к конкретному человеку.', 'Fewer assumptions. More questions for the person in front of you.')}</p><p>{t('Это независимый образовательный тренажёр с оригинальными упражнениями. Он помогает практиковать слушание, ясные просьбы и восстановление разговора, но не оценивает отношения и не заменяет терапию.', 'This is an independent learning tool with original exercises. It helps you practise listening, clear requests and conversation repair, but it does not score relationships or replace therapy.')}</p><p className="muted">{t('При давлении, угрозах или страхе важнее безопасность и поддержка людей или служб, которым вы доверяете.', 'When there is pressure, threats or fear, safety and trusted support matter more than completing an exercise.')}</p></section>}
           {route.view === 'progress' && <section className="content-page"><span className="eyebrow">{t('ВАШ ПУТЬ, ВАШ ТЕМП', 'YOUR JOURNEY, YOUR PACE')}</span><h1 id="page-title" tabIndex={-1}>{t('Уже получается.', 'Look how far you’ve come.')}</h1><p className="lead">{t('Опыт за завершённые уроки — не оценка вас или ваших отношений.', 'Lesson experience is not a score for you or your relationship.')}</p>
+            <Lumi t={t} message={t('Пауза не отнимает опыт. Возвращайтесь, когда будет удобно.', 'Breaks do not remove experience. Return when it suits you.')}/>
             <div className="metric-grid"><div className="card"><span>✦</span><strong data-testid="xp-total">{stats ? stats.xp : '—'}</strong><p>{t('очков опыта', 'experience points')}</p></div><div className="card"><span>◉</span><strong>{stats ? `${stats.count}/${stats.total}` : '—'}</strong><p>{t('уроков завершено', 'lessons completed')}</p></div><div className="card"><span>☀</span><strong>{stats ? stats.streak : '—'}</strong><p>{t('дней подряд с новым уроком', 'consecutive days with a new lesson')}</p></div></div>
             <p className="muted">{t('Серия учитывает только первое завершение урока по местной дате. Повторы не добавляют XP. Паузы не отнимают накопленный опыт.', 'The series counts only first lesson completions by local date. Replays do not add XP. Breaks never remove earned experience.')}</p>
             <section className="card backup"><h2>{t('Ваш прогресс — у вас', 'Your progress stays with you')}</h2><p>{t('Данные сохраняются в этом браузере, без отправки на сервер. Скачивайте резервную копию перед очисткой браузера или сменой устройства.', 'Data stays in this browser and is not sent to a server. Export a backup before clearing browser data or changing devices.')}</p><div className="button-row"><button className="primary" disabled={!state} onClick={exportFile}>{t('Скачать копию', 'Export backup')}</button><button className="secondary" onClick={() => fileRef.current?.click()}>{t('Восстановить из файла', 'Restore from file')}</button><input ref={fileRef} type="file" accept="application/json,.json" className="visually-hidden" aria-label={t('Резервная копия JSON', 'JSON backup')} onChange={(e) => importFile(e.target.files?.[0])}/></div>{hasDrafts() && <p role="status">{t('Есть несохранённые заметки. Экспорт их не включает; импорт заблокирован.', 'There are unsaved notes. Export excludes them; import is blocked.')}</p>}</section>
@@ -264,7 +265,7 @@ function MissionDetail({ mission, state, pending, t, write, go }) {
       <h1 id="page-title" tabIndex={-1}>{mission.title}</h1>
       <p className="lead">{mission.description}</p>
       {complete ? <div className="feedback success" role="status">
-        <span className="celebrate" aria-hidden="true">✦</span>
+        <LumiPortrait mood="success"/>
         <h2>{t('Все три шага отмечены.', 'All three steps are checked.')}</h2>
         <p>{t('Это ваша запись о практике, а не оценка отношений. При желании можно вернуться к последнему шагу.', 'This is your practice record, not a relationship score. You can return to the last step if you want.')}</p>
         <div className="button-row">
@@ -299,8 +300,8 @@ function Lesson({ lesson, mode, step, state, pending, t, write, notePanel, go })
       {step === 0 && <><p className="lead">{lesson.summary}</p><div className="principle"><span aria-hidden="true">✦</span><p>{lesson.principle}</p></div><h2>{t('Как это звучит', 'What it can sound like')}</h2><blockquote>{lesson.example}</blockquote><button className="primary" disabled={!!pending || !state} onClick={() => setStep(1)}>{t('Попробуем', 'Let’s try it')} →</button></>}
       {step === 1 && <><h2>{t('Один шаг в жизни', 'One real-life step')}</h2><p className="lead">{lesson.action}</p>{notePanel(lesson.id)}<p className="muted">{t('Можно обдумать сейчас и попробовать позже. Участие другого человека — только по согласию.', 'Reflect now and try it later. The other person’s participation is always optional.')}</p><div className="button-row"><button className="secondary" disabled={!!pending} onClick={() => setStep(0)}>{t('Назад', 'Back')}</button><button className="primary" disabled={!!pending || !state} onClick={() => setStep(2)}>{t('Проверить понимание', 'Check understanding')} →</button></div></>}
       {step === 2 && <><h2 id="quiz-prompt">{lesson.quiz.prompt}</h2><div className="choices" role="group" aria-labelledby="quiz-prompt">{lesson.quiz.choices.map((text, i) => <button key={i} className={`choice ${choice === i ? 'selected' : ''}`} aria-pressed={choice === i} disabled={!!pending || feedback === 'done'} onClick={() => { setChoice(i); setFeedback(null); }}><span className="choice-number" aria-hidden="true">{i + 1}</span>{text}</button>)}</div>
-        {feedback === 'retry' && <div className="feedback retry" role="status"><strong>{t('Хорошая попытка. Посмотрим ещё раз.', 'Good try. Let’s look again.')}</strong><p>{lesson.quiz.explanation}</p></div>}
-        {feedback === 'done' ? <div className="feedback success" role="status"><span className="celebrate" aria-hidden="true">✦</span><h2>{mode === 'practice' ? t('Практика сохранена!', 'Practice saved!') : t('Урок завершён!', 'Lesson complete!')}</h2><p>{lesson.quiz.explanation}</p><p>{mode === 'practice' ? t('Практика не отмечает новый урок завершённым и не добавляет XP.', 'Practice does not complete a new lesson or award XP.') : t('20 XP за первое завершение. Повторы не начисляют опыт снова.', '20 XP for the first completion. Replays do not add more experience.')}</p><button className="primary" onClick={() => go('path')}>{t('Вернуться к маршруту', 'Return to the path')} →</button></div> : <div className="button-row">{mode !== 'practice' && <button className="secondary" disabled={!!pending} onClick={() => setStep(1)}>{t('Назад', 'Back')}</button>}<button className="primary" disabled={choice === null || !!pending || !state} onClick={check}>{pending ? t('Сохраняем…', 'Saving…') : t('Проверить ответ', 'Check answer')}</button></div>}
+        {feedback === 'retry' && <div className="feedback retry" role="status"><LumiPortrait mood="support"/><strong>{t('Хорошая попытка. Посмотрим ещё раз.', 'Good try. Let’s look again.')}</strong><p>{lesson.quiz.explanation}</p></div>}
+        {feedback === 'done' ? <div className="feedback success" role="status"><LumiPortrait mood="success"/><h2>{mode === 'practice' ? t('Практика сохранена!', 'Practice saved!') : t('Урок завершён!', 'Lesson complete!')}</h2><p>{lesson.quiz.explanation}</p><p>{mode === 'practice' ? t('Практика не отмечает новый урок завершённым и не добавляет XP.', 'Practice does not complete a new lesson or award XP.') : t('20 XP за первое завершение. Повторы не начисляют опыт снова.', '20 XP for the first completion. Replays do not add more experience.')}</p><button className="primary" onClick={() => go('path')}>{t('Вернуться к маршруту', 'Return to the path')} →</button></div> : <div className="button-row">{mode !== 'practice' && <button className="secondary" disabled={!!pending} onClick={() => setStep(1)}>{t('Назад', 'Back')}</button>}<button className="primary" disabled={choice === null || !!pending || !state} onClick={check}>{pending ? t('Сохраняем…', 'Saving…') : t('Проверить ответ', 'Check answer')}</button></div>}
       </>}
     </article></section>;
 }

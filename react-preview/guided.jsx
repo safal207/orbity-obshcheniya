@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { GUIDED, answerGuided, nextLesson } from './navigation.mjs';
+import { Lumi, LumiPortrait } from './lumi.jsx';
 
 export function TopicPicker({ state, pending, t, start }) {
   const topics = [
@@ -11,6 +12,7 @@ export function TopicPicker({ state, pending, t, start }) {
     <span className="eyebrow">{t('ОДНА СИТУАЦИЯ · ТРИ ВОПРОСА', 'ONE SITUATION · THREE QUESTIONS')}</span>
     <h1 id="page-title" tabIndex={-1}>{t('Что сейчас хочется улучшить?', 'What would you like to work on?')}</h1>
     <p className="lead">{t('Выберите то, что ближе. Тему можно сменить позже.', 'Choose what feels relevant. You can change the topic later.')}</p>
+    <Lumi t={t} message={t('Можно начать с того, что сейчас ближе. Правильной темы нет.', 'Start with what feels relevant. There is no right topic.')}/>
     <div className="choices" role="group" aria-label={t('Выбор темы', 'Choose a topic')}>
       {topics.map(([id, icon, ru, en]) => <button key={id} data-topic={id} className="choice" disabled={!state || !!pending} onClick={() => start(id)}>
         <span className="choice-number" aria-hidden="true">{icon}</span>{t(ru, en)}
@@ -67,8 +69,8 @@ export function Guided({ topic, state, course, store, pending, t, write, notePan
     <progress value={feedback === 'done' ? step + 1 : step} max={3} aria-label={t('Вопросы знакомства', 'Introduction questions')}/>
     <article className="lesson-card"><span className="eyebrow">{lesson.title}</span><h1 id="page-title" tabIndex={-1}>{lesson.quiz.prompt}</h1>
       <div className="choices" role="group" aria-label={t('Варианты ответа', 'Answer choices')}>{lesson.quiz.choices.map((text, i) => <button key={i} className={`choice ${choice === i ? 'selected' : ''}`} aria-pressed={choice === i} disabled={!!pending || saving || feedback === 'done'} onClick={() => { setChoice(i); setFeedback(null); }}><span className="choice-number" aria-hidden="true">{i + 1}</span>{text}</button>)}</div>
-      {feedback === 'retry' && <div className="feedback retry" role="status"><strong>{t('Попробуем другой ответ.', 'Let’s try another answer.')}</strong><p>{lesson.principle}</p></div>}
-      {feedback === 'done' ? <div className="feedback success" role="status"><h2>{t('Да, так будет понятнее.', 'Yes, that makes it clearer.')}</h2><p>{lesson.quiz.explanation}</p>
+      {feedback === 'retry' && <div className="feedback retry" role="status"><LumiPortrait mood="support"/><strong>{t('Попробуем другой ответ.', 'Let’s try another answer.')}</strong><p>{lesson.principle}</p></div>}
+      {feedback === 'done' ? <div className="feedback success" role="status"><LumiPortrait mood="success"/><h2>{t('Да, так будет понятнее.', 'Yes, that makes it clearer.')}</h2><p>{lesson.quiz.explanation}</p>
         <details><summary>{t('Пример и своя заметка', 'Example and your reflection')}</summary><blockquote>{lesson.example}</blockquote><button className="secondary" onClick={copy}>{t('Скопировать пример', 'Copy example')}</button>{copyState && <p role="status">{copyState === 'copied' ? t('Пример скопирован.', 'Example copied.') : t('Не удалось скопировать. Выделите текст вручную.', 'Could not copy. Select the text manually.')}</p>}{notePanel(lesson.id)}</details>
         <p className="muted">{t('Вопрос сохранён. Полные уроки не отмечены; XP не изменились.', 'Question saved. Full lessons are not marked complete; XP is unchanged.')}</p>
         <button className="primary" onClick={sync}>{step < 2 ? t('Следующий вопрос', 'Next question') : t('Посмотреть результат', 'See the result')}</button>
