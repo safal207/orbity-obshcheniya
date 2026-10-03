@@ -222,3 +222,71 @@ test('recovery refuses to overwrite a concurrent repair and malformed backups re
   await assert.rejects(store.replace(emptyState(), token), { code: 'IMPORT_CONFLICT' });
   assert.deepEqual(store.read(), repair);
 });
+
+// Selecting a displayed orbit must not reset the saved lesson or introduction.
+test('orbit selection changes only focusModule for every valid module', async () => {
+  const initial = { ...emptyState(), completed: { [first.id]: now }, answers: { [first.id]: correct(first) },
+    notes: { [second.id]: 'KEEP · сохранить' }, review: { [first.id]: now + 86400000 },
+    missionSteps: { [missions[0].id]: [true, false, true] }, focusModule: 'listening',
+    currentLessonId: 'needs-1', guidedFlow: { topic: 'needs', step: 1 } };
+  const f = fixture(initial); const store = f.make();
+  for (const id of new Set(lessons.map((lesson) => lesson.moduleId))) {
+    assert.deepEqual(await store.selectModule(id), { ...initial, focusModule: id });
+    assert.equal(f.data.get(PROGRESS_KEY), JSON.stringify({ ...initial, focusModule: id }));
+  }
+  const token = store.snapshot().token;
+  await store.selectModule(store.read().focusModule);
+  assert.equal(store.snapshot().token, token);
+});
+
+test('orbit selection merges the latest note, mission and guided writes from another store', async () => {
+  const f = fixture(); const a = f.make(); const b = f.make(); a.read(); b.read();
+  await Promise.all([b.saveNote(first.id, 'other tab', ''), b.setMissionStep(missions[0].id, 1, true),
+    b.startGuided('needs'), a.selectModule('conflict')]);
+  assert.deepEqual(a.read(), { ...emptyState(), notes: { [first.id]: 'other tab' },
+    missionSteps: { [missions[0].id]: [false, true, false] }, focusModule: 'conflict',
+    currentLessonId: 'needs-1', guidedFlow: { topic: 'needs', step: 0 } });
+});
+
+test('two orbit selections serialize and the last committed choice wins', async () => {
+  const f = fixture(); const a = f.make(); const b = f.make();
+  await Promise.all([a.selectModule('listening'), b.selectModule('conflict')]);
+  assert.equal(a.read().focusModule, 'conflict'); assert.equal(f.writes, 2);
+});
+
+test('orbit selection does not resurrect data replaced by a newer backup', async () => {
+  const f = fixture({ ...emptyState(), notes: { [first.id]: 'old' } }); const a = f.make(); const b = f.make();
+  const { token } = a.snapshot();
+  const replacement = { ...emptyState(), notes: { [second.id]: 'restored' } };
+  await Promise.all([b.replace(replacement, token), a.selectModule('conflict')]);
+  assert.deepEqual(a.read(), { ...replacement, focusModule: 'conflict' });
+});
+
+test('invalid orbit ids are rejected without writing', () => {
+  const f = fixture(); const store = f.make(); const before = store.snapshot().token;
+  for (const id of [null, undefined, '', 'unknown', '__proto__', ['needs'], { id: 'needs' }, 1]) {
+    assert.throws(() => store.selectModule(id), { code: 'INVALID_EDIT' });
+  }
+  assert.equal(store.snapshot().token, before); assert.equal(f.writes, 0);
+});
+
+test('failed orbit writes preserve the exact saved bytes', async () => {
+  const f = fixture(); const store = f.make(); const before = store.snapshot().token;
+  f.failWrites(); await assert.rejects(store.selectModule('needs'), { code: 'STORAGE_FAILED' });
+  assert.equal(f.data.get(PROGRESS_KEY), before); assert.equal(f.writes, 0);
+});
+
+test('orbit selection fails closed without Web Locks', async () => {
+  const f = fixture(); const store = f.make({ locks: () => undefined });
+  const before = store.snapshot().token;
+  await assert.rejects(store.selectModule('needs'), { code: 'LOCK_UNAVAILABLE' });
+  assert.equal(f.data.get(PROGRESS_KEY), before); assert.equal(f.writes, 0);
+});
+
+test('orbit selection never overwrites corrupt or unreadable storage', async () => {
+  const f = fixture(); const store = f.make(); f.data.set(PROGRESS_KEY, '{broken');
+  await assert.rejects(store.selectModule('needs'), { code: 'INVALID_STORED' });
+  assert.equal(f.data.get(PROGRESS_KEY), '{broken');
+  f.failReads(); await assert.rejects(store.selectModule('needs'), { code: 'STORAGE_FAILED' });
+  assert.equal(f.data.get(PROGRESS_KEY), '{broken'); assert.equal(f.writes, 0);
+});
