@@ -99,6 +99,14 @@ export function createProgressStore({ lessons, missions, storage = () => globalT
     snapshot,
     read: () => snapshot().state,
     validateImport: (raw) => validate(raw, true),
+    selectModule(id) {
+      if (!lessons.some((lesson) => lesson.moduleId === id)) fail('INVALID_EDIT');
+      return transaction((latest) => {
+        // Only the displayed orbit changes; keep the lesson/guided bookmark.
+        latest.focusModule = id;
+        return latest;
+      });
+    },
     selectLesson(id) {
       const lesson = lessonById.get(id);
       if (!lesson) fail('INVALID_EDIT');

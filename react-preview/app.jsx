@@ -85,14 +85,22 @@ function App() {
     if (!loaded || !state || restoredModule.current) return;
     restoredModule.current = true;
     // A deep link wins; storage updates in another tab must not move this view.
-    if (!route.id && state.focusModule) setModuleId(state.focusModule);
-  }, [loaded, state, route.id]);
+    if (!route.id && !route.moduleId && state.focusModule) setModuleId(state.focusModule);
+  }, [loaded, state, route.id, route.moduleId]);
 
   async function write(action) {
     setPending((n) => n + 1); setNotice('');
     try { await action(); refresh(); setError(null); setNow(Date.now()); return true; }
     catch (e) { refresh(); setError(e.code || 'STORAGE_FAILED'); return false; }
     finally { setPending((n) => n - 1); }
+  }
+  async function selectModule(id) {
+    const intent = ++navigationIntent.current;
+    if (!await write(() => store.selectModule(id)) || intent !== navigationIntent.current) return;
+    // Do not display an unsaved choice, or move a screen visited during a lock wait.
+    setModuleId(id);
+    // Keep explicit legacy module links consistent with a newly saved selection.
+    if (route.moduleId) location.hash = `module/${id}`;
   }
   async function go(hash) {
     const intent = ++navigationIntent.current;
@@ -152,7 +160,7 @@ function App() {
         'Replace saved progress with this backup? Lessons, notes and missions will be replaced.'))) return;
       if (hasDrafts()) throw Object.assign(new Error('UNSAVED'), { code: 'UNSAVED' });
       if (await write(() => store.replace(prepared.imported, prepared.token))) {
-        if (prepared.imported.focusModule) setModuleId(prepared.imported.focusModule);
+        setModuleId(prepared.imported.focusModule ?? ru.modules[0].id);
         setNotice(t('Резервная копия восстановлена.', 'Backup restored.'));
       }
     } catch (e) { setError(e.code || 'INVALID_FILE'); }
@@ -208,7 +216,7 @@ function App() {
                 <button className="secondary" onClick={() => go('start')}>{t('Выбрать ситуацию', 'Choose a situation')}</button></div>
               {state && <p className="muted" data-testid="resume-label">{state.guidedFlow ? state.guidedFlow.step < 3 ? `${t('Сохранён вопрос', 'Saved question')} ${state.guidedFlow.step + 1}/3` : t('Три вопроса готовы — откройте результат.', 'Three questions are ready — open the result.') : savedNext ? `${t('Следующий урок', 'Next lesson')}: ${savedNext.title}` : t('Все уроки пройдены.', 'All lessons completed.')}</p>}
             </div><Lumi t={t} hero mood={error ? 'support' : 'idle'} message={error ? t('Сначала разберёмся с сообщением выше.', 'Let’s address the message above first.') : undefined}/></section>
-              <div className="unit-picker"><label htmlFor="unit">{t('Ваша орбита', 'Your orbit')}</label><select id="unit" value={module.id} onChange={(e) => setModuleId(e.target.value)}>{course.modules.map((m, i) => <option key={m.id} value={m.id}>{String(i + 1).padStart(2, '0')} · {m.title}</option>)}</select></div>
+              <div className="unit-picker"><label htmlFor="unit">{t('Ваша орбита', 'Your orbit')}</label><select id="unit" value={module.id} disabled={!state || !!pending} aria-busy={!!pending} onChange={(e) => selectModule(e.target.value)}>{course.modules.map((m, i) => <option key={m.id} value={m.id}>{String(i + 1).padStart(2, '0')} · {m.title}</option>)}</select></div>
               <section className="unit" style={{ '--accent': accents[unitIndex] }} aria-labelledby="unit-title"><div className="unit-header"><span className="unit-symbol" aria-hidden="true">{symbols[unitIndex]}</span><div><span className="eyebrow">{t('ОРБИТА', 'ORBIT')} {unitIndex + 1} / {course.modules.length}</span><h2 id="unit-title">{module.title}</h2><p>{module.description}</p></div></div>
                 <ol className="lesson-path">{unitLessons.map((l, i) => {
                   const done = !!state?.completed[l.id]; const current = l.id === next.id;
