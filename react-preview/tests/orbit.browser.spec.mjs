@@ -17,6 +17,8 @@ async function seed(page, state = savedState(), lang = 'ru', hash = 'path') {
   await page.goto('/');
   await page.evaluate(({ key, state }) => localStorage.setItem(key, JSON.stringify(state)), { key: KEY, state });
   await page.goto(`/?lang=${lang}#${hash}`);
+  // The app normalizes ?lang; goto can be hash-only. Reload to read seeded storage.
+  await page.reload();
   await expect(page.locator('#unit')).toBeEnabled();
   return state;
 }
