@@ -80,7 +80,8 @@ function App() {
     const selected = ru.lessons.find((l) => l.id === route.id);
     if (selected) setModuleId(selected.moduleId);
     else if (route.moduleId && ru.modules.some((m) => m.id === route.moduleId)) setModuleId(route.moduleId);
-  }, [route.view, route.id, route.moduleId, route.missionId, loaded]);
+    else if (route.view === 'path' && loaded && state?.focusModule) setModuleId(state.focusModule);
+  }, [route.view, route.id, route.moduleId, route.missionId, loaded, state?.focusModule]);
   useEffect(() => {
     if (!loaded || !state || restoredModule.current) return;
     restoredModule.current = true;
@@ -160,7 +161,10 @@ function App() {
         'Replace saved progress with this backup? Lessons, notes and missions will be replaced.'))) return;
       if (hasDrafts()) throw Object.assign(new Error('UNSAVED'), { code: 'UNSAVED' });
       if (await write(() => store.replace(prepared.imported, prepared.token))) {
-        setModuleId(prepared.imported.focusModule ?? ru.modules[0].id);
+        const currentRoute = learningRoute(location.hash, ru.lessons, ru.missions);
+        if (!currentRoute.id && !currentRoute.moduleId) {
+          setModuleId(prepared.imported.focusModule ?? ru.modules[0].id);
+        }
         setNotice(t('Резервная копия восстановлена.', 'Backup restored.'));
       }
     } catch (e) { setError(e.code || 'INVALID_FILE'); }

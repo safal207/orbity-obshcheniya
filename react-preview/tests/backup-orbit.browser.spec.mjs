@@ -3,6 +3,17 @@ import AxeBuilder from '@axe-core/playwright';
 
 const KEY = 'orbity-dialoga-progress-v1';
 const raw = (page) => page.evaluate((key) => localStorage.getItem(key), KEY);
+async function holdLock(page) {
+  await page.evaluate((key) => {
+    window.backupOrbitLockReady = false;
+    navigator.locks.request(key, () => {
+      window.backupOrbitLockReady = true;
+      return new Promise((resolve) => { window.releaseBackupOrbitLock = resolve; });
+    });
+  }, KEY);
+  await expect.poll(() => page.evaluate(() => window.backupOrbitLockReady)).toBe(true);
+}
+const releaseLock = (page) => page.evaluate(() => window.releaseBackupOrbitLock?.());
 const maps = () => ({ completed: { 'map-1': 1000 }, answers: { 'map-1': 1 },
   notes: { 'map-1': 'SYNTHETIC RESTORED NOTE · восстановлено' }, review: { 'map-1': 2000 },
   missionSteps: { 'listen-ten': [true, false, true] } });
@@ -63,6 +74,25 @@ for (const lang of ['ru', 'en']) {
       }
     });
   }
+
+  test(`backup orbit ${lang}: delayed import preserves a newer explicit module link`, async ({ page }) => {
+    await openFromAnotherOrbit(page, lang);
+    await holdLock(page);
+    try {
+      page.once('dialog', (dialog) => dialog.accept());
+      await page.locator('input[type=file]').setInputFiles(upload({ ...maps(), focusModule: 'map' }));
+      await expect.poll(() => page.evaluate(async (key) =>
+        (await navigator.locks.query()).pending.filter((lock) => lock.name === key).length, KEY)).toBe(1);
+      await page.evaluate(() => { location.hash = 'module/needs'; });
+      await expect(page.locator('#unit')).toHaveValue('needs');
+    } finally { await releaseLock(page); }
+    await expect(page.locator('.notice')).toContainText(lang === 'ru' ? 'восстановлена' : 'restored');
+    await expect(page).toHaveURL(/#module\/needs$/);
+    await expect(page.locator('#unit')).toHaveValue('needs');
+    expect(JSON.parse(await raw(page)).focusModule).toBe('map');
+    await page.evaluate(() => { location.hash = 'path'; });
+    await expect(page.locator('#unit')).toHaveValue('map');
+  });
 
   test(`backup orbit ${lang}: cancelled and failed imports retain the previous choice and bytes`, async ({ page }) => {
     await openFromAnotherOrbit(page, lang);
