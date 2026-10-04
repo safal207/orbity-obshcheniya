@@ -173,10 +173,12 @@ test('a delayed orbit save cannot override a more recent explicit module navigat
   await expect(page.locator('#unit')).toHaveValue('needs');
   await expect(page).toHaveURL(/#module\/needs$/);
   expect(await raw(page)).toBe(JSON.stringify({ ...initial, focusModule: 'conflict' }));
-  await page.reload(); await expect(page.locator('#unit')).toHaveValue('needs');
   await page.evaluate(() => { location.hash = 'path'; });
   await expect(page).toHaveURL(/#path$/);
   await expect(page.locator('#unit')).toHaveValue('conflict');
+  await page.evaluate(() => { location.hash = 'module/needs'; });
+  await expect(page.locator('#unit')).toHaveValue('needs');
+  await page.reload(); await expect(page.locator('#unit')).toHaveValue('needs');
 });
 
 test('orbit selection fails closed when real browser locks are unavailable', async ({ page }) => {

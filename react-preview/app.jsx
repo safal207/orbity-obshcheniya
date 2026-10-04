@@ -41,6 +41,7 @@ function App() {
   const [, redrawDrafts] = useState(0);
   const fileRef = useRef(null);
   const restoredModule = useRef(false);
+  const restoreSavedModuleOnPath = useRef(false);
   const navigationIntent = useRef(0);
   const hasDrafts = () => drafts.current.size > 0;
   const explain = (code) => (errorCopy[code] || errorCopy.STORAGE_FAILED)[lang === 'ru' ? 0 : 1];
@@ -80,14 +81,16 @@ function App() {
     const selected = ru.lessons.find((l) => l.id === route.id);
     if (selected) setModuleId(selected.moduleId);
     else if (route.moduleId && ru.modules.some((m) => m.id === route.moduleId)) setModuleId(route.moduleId);
-    else if (route.view === 'path' && loaded && state?.focusModule) setModuleId(state.focusModule);
-  }, [route.view, route.id, route.moduleId, route.missionId, loaded, state?.focusModule]);
+  }, [route.view, route.id, route.moduleId, route.missionId, loaded]);
   useEffect(() => {
-    if (!loaded || !state || restoredModule.current) return;
+    if (!loaded || !state) return;
+    const unlinkedPath = route.view === 'path' && !route.id && !route.moduleId;
+    if (!unlinkedPath || (restoredModule.current && !restoreSavedModuleOnPath.current)) return;
+    // Explicit routes win, and unrelated storage events must not move an active path.
     restoredModule.current = true;
-    // A deep link wins; storage updates in another tab must not move this view.
-    if (!route.id && !route.moduleId && state.focusModule) setModuleId(state.focusModule);
-  }, [loaded, state, route.id, route.moduleId]);
+    restoreSavedModuleOnPath.current = false;
+    if (state.focusModule) setModuleId(state.focusModule);
+  }, [loaded, state, route.view, route.id, route.moduleId]);
 
   async function write(action) {
     setPending((n) => n + 1); setNotice('');
@@ -97,7 +100,11 @@ function App() {
   }
   async function selectModule(id) {
     const intent = ++navigationIntent.current;
-    if (!await write(() => store.selectModule(id)) || intent !== navigationIntent.current) return;
+    if (!await write(() => store.selectModule(id))) return;
+    if (intent !== navigationIntent.current) {
+      restoreSavedModuleOnPath.current = true;
+      return;
+    }
     // Do not display an unsaved choice, or move a screen visited during a lock wait.
     setModuleId(id);
     // Keep explicit legacy module links consistent with a newly saved selection.
