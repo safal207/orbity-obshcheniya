@@ -57,7 +57,15 @@ function App() {
     refresh();
     const onStorage = (e) => { if (e.key === PROGRESS_KEY || e.key === null) refresh(); };
     const onVisible = () => { if (!document.hidden) refresh(); };
-    const onHash = () => { navigationIntent.current++; setRoute(learningRoute(location.hash, ru.lessons, ru.missions)); setNotice(''); };
+    const onHash = () => {
+      navigationIntent.current++;
+      const nextRoute = learningRoute(location.hash, ru.lessons, ru.missions);
+      // A deliberate return restores the saved orbit; storage events alone do not.
+      if (nextRoute.view === 'path' && !nextRoute.id && !nextRoute.moduleId) {
+        restoreSavedModuleOnPath.current = true;
+      }
+      setRoute(nextRoute); setNotice('');
+    };
     const unload = (e) => { if (hasDrafts()) { e.preventDefault(); e.returnValue = ''; } };
     addEventListener('storage', onStorage); addEventListener('focus', refresh);
     addEventListener('hashchange', onHash); addEventListener('beforeunload', unload);
@@ -89,7 +97,7 @@ function App() {
     // Explicit routes win, and unrelated storage events must not move an active path.
     restoredModule.current = true;
     restoreSavedModuleOnPath.current = false;
-    if (state.focusModule) setModuleId(state.focusModule);
+    setModuleId(state.focusModule ?? ru.modules[0].id);
   }, [loaded, state, route.view, route.id, route.moduleId]);
 
   async function write(action) {
