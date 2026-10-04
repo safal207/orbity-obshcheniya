@@ -171,6 +171,8 @@ function App() {
         const currentRoute = learningRoute(location.hash, ru.lessons, ru.missions);
         if (!currentRoute.id && !currentRoute.moduleId) {
           setModuleId(prepared.imported.focusModule ?? ru.modules[0].id);
+        } else {
+          restoreSavedModuleOnPath.current = true;
         }
         setNotice(t('Резервная копия восстановлена.', 'Backup restored.'));
       }
