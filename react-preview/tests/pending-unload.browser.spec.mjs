@@ -71,7 +71,11 @@ async function cleanExit(page, method) {
   page.on('dialog', onDialog);
   try {
     if (method === 'close') {
-      await Promise.all([page.waitForEvent('close', { timeout: 3000 }), page.close({ runBeforeUnload: true })]);
+      // Playwright 1.56.1 keeps its page in 'closing' after a cancelled close.
+      // Send Chromium's Page.close (which runs beforeunload), not a forced target close.
+      // This also verifies a second real close request after the user's earlier Stay.
+      const session = await page.context().newCDPSession(page);
+      await Promise.all([page.waitForEvent('close', { timeout: 3000 }), session.send('Page.close')]);
     } else await page.reload({ timeout: 5000 });
     expect(unexpected).toEqual([]);
   } finally { page.off('dialog', onDialog); }
