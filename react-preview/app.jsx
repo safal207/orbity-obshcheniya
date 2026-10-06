@@ -33,6 +33,7 @@ function App() {
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState('');
   const [pending, setPending] = useState(0);
+  const pendingWrites = useRef(0);
   const [route, setRoute] = useState(() => learningRoute(location.hash, ru.lessons, ru.missions));
   const [moduleId, setModuleId] = useState(ru.modules[0].id);
   const [now, setNow] = useState(Date.now());
@@ -66,7 +67,7 @@ function App() {
       }
       setRoute(nextRoute); setNotice('');
     };
-    const unload = (e) => { if (hasDrafts()) { e.preventDefault(); e.returnValue = ''; } };
+    const unload = (e) => { if (hasDrafts() || pendingWrites.current > 0) { e.preventDefault(); e.returnValue = ''; } };
     addEventListener('storage', onStorage); addEventListener('focus', refresh);
     addEventListener('hashchange', onHash); addEventListener('beforeunload', unload);
     document.addEventListener('visibilitychange', onVisible);
@@ -101,10 +102,12 @@ function App() {
   }, [loaded, state, route.view, route.id, route.moduleId]);
 
   async function write(action) {
+    // The stable unload handler needs the live count, including before a render.
+    pendingWrites.current++;
     setPending((n) => n + 1); setNotice('');
     try { await action(); refresh(); setError(null); setNow(Date.now()); return true; }
     catch (e) { refresh(); setError(e.code || 'STORAGE_FAILED'); return false; }
-    finally { setPending((n) => n - 1); }
+    finally { pendingWrites.current--; setPending((n) => n - 1); }
   }
   async function selectModule(id) {
     const intent = ++navigationIntent.current;
