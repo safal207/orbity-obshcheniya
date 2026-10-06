@@ -74,7 +74,10 @@ for (const lang of ['ru', 'en']) {
       await page.reload(); await assertStep(page, 0);
       expect(await raw(page)).toBe(restarted);
       await page.getByRole('button', { name: lang === 'ru' ? 'Switch to English' : 'Переключить на русский' }).click();
-      await assertStep(page, 0);
+      // Language switching keeps focus on its control; only question content is restored.
+      await expect(page.locator('html')).toHaveAttribute('lang', lang === 'ru' ? 'en' : 'ru');
+      await expect(page.locator('.lesson-top')).toContainText('1/3');
+      await expect(page.locator('.choice[aria-pressed=true]')).toHaveCount(0);
       expect(await raw(page)).toBe(restarted);
     });
   }

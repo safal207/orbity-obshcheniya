@@ -122,7 +122,10 @@ export function createProgressStore({ lessons, missions, storage = () => globalT
       return transaction((latest) => {
         latest.focusModule = topic;
         latest.currentLessonId = guided[topic][0];
-        latest.guidedFlow = { topic, step: latest.guidedFlow?.topic === topic ? latest.guidedFlow.step : 0 };
+        const previous = latest.guidedFlow;
+        // Explicit selection restarts completed introductions; unfinished ones resume.
+        const step = previous?.topic === topic && previous.step < guided[topic].length ? previous.step : 0;
+        latest.guidedFlow = { topic, step };
         return latest;
       });
     },
