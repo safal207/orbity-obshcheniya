@@ -7,7 +7,7 @@ const load = async (path) => import(`data:text/javascript;base64,${Buffer.from(r
 const { createProgressStore, emptyState, PROGRESS_KEY } = await load('../../dist/progress-store.js');
 const { lessons, missions } = await load('../../dist/course.js');
 
-// Serialized lock double: real cross-tab Web Locks are covered in Chromium.
+// Serialized lock double: real cross-tab Web Locks are covered in Chromium and Firefox.
 function fixture(seed = emptyState()) {
   const data = new Map([[PROGRESS_KEY, JSON.stringify(seed)]]);
   let failRead = false;
@@ -69,6 +69,53 @@ test('queued guided restart preserves the latest independent notes and mission e
   await Promise.all([b.saveNote(first.id, 'new note', ''), b.setMissionStep(missions[0].id, 1, true), a.startGuided('needs')]);
   assert.deepEqual(a.read(), { ...initial, notes: { [first.id]: 'new note' },
     missionSteps: { [missions[0].id]: [false, true, false] }, guidedFlow: { topic: 'needs', step: 0 } });
+});
+
+test('queued guided restart preserves a note published at the writing tab\'s task checkpoint', async () => {
+  const initial = { ...emptyState(), notes: { [first.id]: 'KEEP' }, focusModule: 'needs',
+    currentLessonId: 'needs-1', guidedFlow: { topic: 'needs', step: 3 } };
+  let published = JSON.stringify(initial);
+  const checkpoints = [];
+  let tail = Promise.resolve();
+  const locks = { request(name, options, callback) {
+    assert.equal(name, PROGRESS_KEY);
+    assert.equal(options.mode, 'exclusive');
+    const next = tail.then(() => {
+      if (options.signal.aborted) throw new DOMException('Aborted', 'AbortError');
+      return callback({ name });
+    });
+    tail = next.catch(() => {});
+    return next;
+  } };
+  function tab() {
+    let localWrite;
+    const storage = {
+      getItem(key) {
+        assert.equal(key, PROGRESS_KEY);
+        return localWrite ?? published;
+      },
+      setItem(key, value) {
+        assert.equal(key, PROGRESS_KEY);
+        // The writer reads its own value immediately. Other tabs see it after
+        // the task ends, as with Firefox's localStorage snapshot checkpoint.
+        localWrite = value;
+        checkpoints.push(new Promise((resolve) => setTimeout(() => {
+          published = value;
+          localWrite = undefined;
+          resolve();
+        }, 0)));
+      },
+    };
+    return createProgressStore({ lessons, missions, storage: () => storage, locks: () => locks });
+  }
+  const a = tab(); const b = tab(); a.read(); b.read();
+  await Promise.all([b.saveNote(second.id, 'Queued note from other tab', ''), a.startGuided('needs')]);
+  await Promise.all(checkpoints);
+  const expected = { ...initial, notes: { ...initial.notes, [second.id]: 'Queued note from other tab' },
+    guidedFlow: { topic: 'needs', step: 0 } };
+  assert.deepEqual(JSON.parse(published), expected);
+  assert.deepEqual(a.read(), expected);
+  assert.deepEqual(b.read(), expected);
 });
 
 for (const error of ['STORAGE_FAILED', 'LOCK_UNAVAILABLE']) test(`guided restart retains completion on ${error}`, async () => {

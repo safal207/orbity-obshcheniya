@@ -84,12 +84,15 @@ export function createProgressStore({ lessons, missions, storage = () => globalT
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), lockTimeout);
     try {
-      return await manager.request(PROGRESS_KEY, { mode: 'exclusive', signal: controller.signal }, () => {
-        // Synchronous read/modify/write under the lock; no prompts or awaits here.
+      return await manager.request(PROGRESS_KEY, { mode: 'exclusive', signal: controller.signal }, async () => {
+        // Keep the read/modify/write synchronous under the lock.
         const current = snapshot({ allowInvalid });
         const next = validate(edit(current.state, current.token));
         try { storage().setItem(PROGRESS_KEY, JSON.stringify(next)); }
         catch { fail('STORAGE_FAILED'); }
+        // Firefox publishes localStorage snapshots at the end of the task.
+        // Hold the lock through that checkpoint before another tab can read.
+        await new Promise((resolve) => setTimeout(resolve, 0));
         return next;
       });
     } catch (error) {

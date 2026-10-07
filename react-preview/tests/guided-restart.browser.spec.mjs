@@ -133,6 +133,8 @@ for (const lang of ['ru', 'en']) {
       await second.locator('textarea').fill('Queued note from other tab');
       await second.getByRole('button', { name: otherLang === 'ru' ? 'Сохранить / повторить' : 'Save / retry', exact: true }).click();
       await expect(second.locator('textarea')).toBeDisabled();
+      await expect(second.locator('textarea')).toHaveValue('Queued note from other tab');
+      await expect(second.locator('.save-state')).toContainText(otherLang === 'ru' ? 'Сохраняем…' : 'Saving…');
       await chooseAgain(page, lang, 'needs');
       await expect(page.locator('[data-topic=needs]')).toBeDisabled();
       await expect.poll(() => second.evaluate(async (key) =>
@@ -140,13 +142,21 @@ for (const lang of ['ru', 'en']) {
       await expect(page).toHaveURL(/#start$/);
       expect(await raw(page)).toBe(before);
     } finally { await second.evaluate(() => window.releaseRestartLock()); }
+    // Read persistent data independently of the saving tab's status acknowledgement.
+    await expect.poll(async () => JSON.parse(await raw(page)).notes['map-2']).toBe('Queued note from other tab');
     await expect(second.locator('.save-state')).toContainText(otherLang === 'ru' ? 'Сохранено на этом устройстве' : 'Saved on this device');
     await assertStep(page, 0);
     const expected = saved('needs', 0);
     expected.notes['map-2'] = 'Queued note from other tab';
     expect(await raw(page)).toBe(JSON.stringify(expected));
+    expect(await raw(second)).toBe(JSON.stringify(expected));
     await expect(second).toHaveURL(/#lesson\/map-2\/1$/);
     await page.reload(); await assertStep(page, 0);
+    expect(await raw(page)).toBe(JSON.stringify(expected));
+    await second.reload();
+    await expect(second.locator('textarea')).toHaveValue('Queued note from other tab');
+    await expect(second.locator('.save-state')).toContainText(otherLang === 'ru' ? 'Сохранено на этом устройстве' : 'Saved on this device');
+    expect(await raw(second)).toBe(JSON.stringify(expected));
     expect(await raw(page)).toBe(JSON.stringify(expected));
   });
 }
