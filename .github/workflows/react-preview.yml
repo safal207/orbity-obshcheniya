@@ -31,10 +31,16 @@ jobs:
         run: |
           npm test
           npm run build
-      - name: Install Chromium
-        run: npx playwright install --with-deps chromium
-      - name: Real-browser acceptance
+      - name: Install Chromium and Firefox
+        run: npx playwright install --with-deps chromium firefox
+      - name: Real-browser acceptance (Chromium)
         run: npm run test:browser
+      - name: Guided-resume acceptance (Firefox)
+        env:
+          PW_BROWSER: firefox
+          PW_OUTPUT_DIR: test-results-firefox
+          PW_HTML_DIR: playwright-report-firefox
+        run: npx playwright test tests/guided-restart.browser.spec.mjs
       - name: Archive exact tested source
         if: always()
         run: git -C .. archive --format=tar.gz --output=react-preview/source-tested.tar.gz HEAD
@@ -50,4 +56,6 @@ jobs:
             react-preview/package-lock.json
             react-preview/test-results/
             react-preview/playwright-report/
+            react-preview/test-results-firefox/
+            react-preview/playwright-report-firefox/
 # No pages/id-token write permission and no deploy job. Production stays intact.

@@ -3,6 +3,9 @@
 export const PROGRESS_KEY = 'orbity-dialoga-progress-v1';
 export const emptyState = () => ({ completed: {}, answers: {}, notes: {}, review: {}, missionSteps: {},
   focusModule: null, currentLessonId: null, guidedFlow: null });
+// Existing v1 bookmark is sufficient for reload; a guided cursor is not a lesson start.
+export const hasLessonStart = (state, id) => !!state && typeof id === 'string' &&
+  state.currentLessonId === id && state.guidedFlow == null;
 const fields = ['completed', 'answers', 'notes', 'review', 'missionSteps'];
 const navigationFields = ['focusModule', 'currentLessonId', 'guidedFlow'];
 const record = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -13,7 +16,7 @@ export function createProgressStore({ lessons, missions, storage = () => globalT
     listening: ['listening-3', 'listening-1', 'listening-2'],
     conflict: ['conflict-1', 'conflict-2', 'conflict-3'],
     needs: ['needs-1', 'needs-2', 'needs-3'],
-  } }) {
+  }, requireLessonStart = false }) {
   const lessonById = new Map(lessons.map((lesson) => [lesson.id, lesson]));
   const missionById = new Map(missions.map((mission) => [mission.id, mission]));
 
@@ -81,12 +84,15 @@ export function createProgressStore({ lessons, missions, storage = () => globalT
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), lockTimeout);
     try {
-      return await manager.request(PROGRESS_KEY, { mode: 'exclusive', signal: controller.signal }, () => {
-        // Synchronous read/modify/write under the lock; no prompts or awaits here.
+      return await manager.request(PROGRESS_KEY, { mode: 'exclusive', signal: controller.signal }, async () => {
+        // Keep the read/modify/write synchronous under the lock.
         const current = snapshot({ allowInvalid });
         const next = validate(edit(current.state, current.token));
         try { storage().setItem(PROGRESS_KEY, JSON.stringify(next)); }
         catch { fail('STORAGE_FAILED'); }
+        // Firefox publishes localStorage snapshots at the end of the task.
+        // Hold the lock through that checkpoint before another tab can read.
+        await new Promise((resolve) => setTimeout(resolve, 0));
         return next;
       });
     } catch (error) {
@@ -99,6 +105,14 @@ export function createProgressStore({ lessons, missions, storage = () => globalT
     snapshot,
     read: () => snapshot().state,
     validateImport: (raw) => validate(raw, true),
+    selectModule(id) {
+      if (!lessons.some((lesson) => lesson.moduleId === id)) fail('INVALID_EDIT');
+      return transaction((latest) => {
+        // Only the displayed orbit changes; keep the lesson/guided bookmark.
+        latest.focusModule = id;
+        return latest;
+      });
+    },
     selectLesson(id) {
       const lesson = lessonById.get(id);
       if (!lesson) fail('INVALID_EDIT');
@@ -114,7 +128,10 @@ export function createProgressStore({ lessons, missions, storage = () => globalT
       return transaction((latest) => {
         latest.focusModule = topic;
         latest.currentLessonId = guided[topic][0];
-        latest.guidedFlow = { topic, step: latest.guidedFlow?.topic === topic ? latest.guidedFlow.step : 0 };
+        const previous = latest.guidedFlow;
+        // Explicit selection restarts completed introductions; unfinished ones resume.
+        const step = previous?.topic === topic && previous.step < guided[topic].length ? previous.step : 0;
+        latest.guidedFlow = { topic, step };
         return latest;
       });
     },
@@ -123,6 +140,8 @@ export function createProgressStore({ lessons, missions, storage = () => globalT
       if (!lesson || !['lesson', 'practice', 'review', 'guided'].includes(mode) ||
         !Number.isInteger(choice) || choice < 0 || choice >= lesson.quiz.choices.length) fail('INVALID_EDIT');
       return transaction((latest) => {
+        // Check inside the lock: another tab may have changed the bookmark while queued.
+        if (mode === 'lesson' && requireLessonStart && !hasLessonStart(latest, id)) fail('LESSON_NOT_STARTED');
         if (!lesson.quiz.correct.includes(choice)) return latest;
         if (mode === 'guided') {
           const step = guided[lesson.moduleId]?.indexOf(id);

@@ -21,7 +21,7 @@ export function TopicPicker({ state, pending, t, start }) {
   </article></section>;
 }
 
-export function Guided({ topic, state, course, store, pending, t, write, notePanel, go }) {
+export function Guided({ topic, state, course, store, pending, t, write, notePanel, go, onSync }) {
   const active = state?.guidedFlow;
   const [step, setStep] = useState(active?.topic === topic ? active.step : 0);
   const [choice, setChoice] = useState(null);
@@ -35,6 +35,8 @@ export function Guided({ topic, state, course, store, pending, t, write, notePan
 
   function sync() {
     setStep(active.step); setChoice(null); setFeedback(null); setCopyState('');
+    // Acknowledge only the guided conflict; this does not write progress.
+    onSync();
   }
   async function check() {
     if (!lesson || choice === null || feedback === 'done' || pending || saving || stale) return;

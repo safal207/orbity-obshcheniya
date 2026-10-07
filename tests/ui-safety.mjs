@@ -10,7 +10,13 @@ const seed = () => ({ completed: { [lesson.id]: 1790600000000 }, answers: { [les
   notes: { [lesson.id]: 'original note' }, review: { [lesson.id]: 1790600000000 }, missionSteps: {} });
 let sequence = 0;
 const realTimeout = globalThis.setTimeout;
-globalThis.setTimeout = (...args) => { const timer = realTimeout(...args); timer.unref?.(); return timer; };
+globalThis.setTimeout = (...args) => {
+  const timer = realTimeout(...args);
+  // Autosave/lock timers must not keep fixtures alive, but an awaited storage
+  // checkpoint needs its zero-delay task to run before the test can finish.
+  if (args[1] > 0) timer.unref?.();
+  return timer;
+};
 const decode = (text) => text.replace(/&(lt|gt|amp|quot|#39);/g, (_, name) => ({ lt: '<', gt: '>', amp: '&', quot: '"', '#39': "'" })[name]);
 
 async function boot(lang, { initial = seed(), hash = '#progress', writeFailure = false, readFailure = false } = {}) {
