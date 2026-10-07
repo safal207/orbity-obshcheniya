@@ -1,7 +1,6 @@
 import { modules, lessons, missions } from './course.en.js';
 
-const KEY = 'orbity-dialoga-progress-v1';
-const DAY = 24 * 60 * 60 * 1000;
+import { createProgressStore, emptyState, PROGRESS_KEY } from './progress-store.js';
 const byLesson = new Map(lessons.map((item) => [item.id, item]));
 const byMission = new Map(missions.map((item) => [item.id, item]));
 const guided = {
@@ -19,53 +18,79 @@ let reviewPosition = 0;
 let lastRoute = '';
 let toastTimer;
 
-function emptyState() {
-  return { completed: {}, answers: {}, notes: {}, review: {}, missionSteps: {}, focusModule: null, currentLessonId: null, guidedFlow: null };
+const store = createProgressStore({ lessons, missions, guided });
+const storageMessages = {
+  "INVALID_FILE": "The progress file is malformed or has an unsupported structure.",
+  "INVALID_STORED": "Saved data is malformed. Nothing was overwritten. You can restore a valid backup in Progress.",
+  "STORAGE_FAILED": "Could not save or read progress. Changes are not confirmed; your note draft remains in this tab.",
+  "LOCK_UNAVAILABLE": "Safe saving is unavailable. Copy your note and open the HTTPS site in a modern browser.",
+  "LOCK_TIMEOUT": "Another tab is busy saving. Nothing was written; please retry.",
+  "NOTE_CONFLICT": "Another tab changed this note. Copy your draft, then reload the page to compare.",
+  "IMPORT_CONFLICT": "Progress changed in another tab. Import cancelled; check the data and retry.",
+  "FILE_TOO_LARGE": "File is too large.",
+  "FLOW_CONFLICT": "Another tab changed the topic. Open the topic chooser again.",
+  "UNSAVED_NOTES": "Save or copy your unsaved notes first. Import was not performed."
+};
+const drafts = new Map();
+let initialLoadError;
+let lastRefreshError;
+function storageError(error) {
+  announce(storageMessages[error?.code] || storageMessages.STORAGE_FAILED, 10000);
 }
-
-function normalizeState(raw) {
-  const clean = emptyState();
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return clean;
-  for (const lesson of lessons) {
-    const id = lesson.id;
-    if (Number.isFinite(raw.completed?.[id])) clean.completed[id] = raw.completed[id];
-    if (Number.isInteger(raw.answers?.[id]) && raw.answers[id] >= 0 && raw.answers[id] < lesson.quiz.choices.length) clean.answers[id] = raw.answers[id];
-    if (typeof raw.notes?.[id] === 'string') clean.notes[id] = raw.notes[id].slice(0, 2000);
-    if (Number.isFinite(raw.review?.[id])) clean.review[id] = raw.review[id];
-  }
-  for (const mission of missions) {
-    const steps = raw.missionSteps?.[mission.id];
-    if (Array.isArray(steps)) clean.missionSteps[mission.id] = mission.steps.map((_, index) => steps[index] === true);
-  }
-  if (modules.some((module) => module.id === raw.focusModule)) clean.focusModule = raw.focusModule;
-  if (byLesson.has(raw.currentLessonId)) clean.currentLessonId = raw.currentLessonId;
-  if (guided[raw.guidedFlow?.topic] && Number.isInteger(raw.guidedFlow.step) && raw.guidedFlow.step >= 0 && raw.guidedFlow.step <= 3) {
-    clean.guidedFlow = { topic: raw.guidedFlow.topic, step: raw.guidedFlow.step };
-  }
-  return clean;
-}
-
 function loadState() {
-  try { return normalizeState(JSON.parse(localStorage.getItem(KEY) || 'null')); }
-  catch { return emptyState(); }
+  try { return store.read(); }
+  catch (error) { initialLoadError = error; return emptyState(); }
 }
-
 let state = loadState();
-
-function save() {
-  try { localStorage.setItem(KEY, JSON.stringify(state)); }
-  catch { announce('Progress could not be saved in this browser'); }
+async function commit(operation, message = '') {
+  try {
+    state = await operation();
+    if (message) announce(message);
+    return true;
+  } catch (error) { storageError(error); return false; }
+}
+function draftFor(id) {
+  if (!drafts.has(id)) {
+    const value = state.notes[id] || '';
+    drafts.set(id, { value, base: value, pending: 0, chain: Promise.resolve(), status: '' });
+  }
+  return drafts.get(id);
+}
+function hasUnsavedNotes() {
+  return [...drafts.values()].some((draft) => draft.pending || draft.value !== draft.base);
+}
+function noteStatus(id, text) {
+  const draft = draftFor(id);
+  draft.status = text;
+  const status = main.querySelector('[data-note-status="' + id + '"]');
+  if (status) status.textContent = text;
+}
+function saveNote(id, value) {
+  const draft = draftFor(id);
+  draft.value = value;
+  draft.pending++;
+  noteStatus(id, "Saving note…");
+  // Each edit uses the baseline established by the preceding successful save.
+  // A rejected save never advances that baseline or replaces a competing note.
+  draft.chain = draft.chain.then(async () => {
+    const ok = await commit(() => store.saveNote(id, value, draft.base));
+    if (ok) draft.base = value;
+    draft.pending--;
+    if (!draft.pending) noteStatus(id, ok ? "Note saved on this device." : toast.textContent);
+    return ok;
+  });
+  return draft.chain;
 }
 
 function esc(value) {
   return String(value).replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
 }
 
-function announce(message) {
+function announce(message, duration = 3000) {
   toast.textContent = message;
   toast.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => toast.classList.remove('show'), 3000);
+  toastTimer = setTimeout(() => toast.classList.remove('show'), duration);
 }
 
 function doneCount() { return lessons.filter((item) => state.completed[item.id]).length; }
@@ -153,12 +178,15 @@ function renderTopics() {
 }
 
 function resultDetails(lesson) {
+  const draft = draftFor(lesson.id);
   return '<details class="note-disclosure"><summary>Example and your note</summary>' +
     '<p class="example-text">' + esc(lesson.example) + '</p>' +
     '<button type="button" class="secondary-button" data-copy-example="' + esc(lesson.id) + '">Copy example</button>' +
     '<label for="note-' + esc(lesson.id) + '">How might you use this?</label>' +
-    '<textarea id="note-' + esc(lesson.id) + '" data-note-id="' + esc(lesson.id) + '" maxlength="2000" rows="3" placeholder="Write your own phrase if you like">' + esc(state.notes[lesson.id] || '') + '</textarea>' +
-    '<p class="fine-print">Your note is saved only in this browser.</p></details>';
+    '<textarea id="note-' + esc(lesson.id) + '" data-note-id="' + esc(lesson.id) + '" maxlength="2000" rows="3" placeholder="Write your own phrase if you like">' + esc(draft.value) + '</textarea>' +
+    '<p class="fine-print">Your note is saved only in this browser.</p>' +
+    '<p class="fine-print" data-note-status="' + esc(lesson.id) + '" role="status">' + esc(draft.status) + '</p>' +
+    '<button type="button" class="secondary-button" data-save-note="' + esc(lesson.id) + '">Retry saving</button></details>';
 }
 
 function questionScreen(lesson, mode, meta, progress, completedProgress, back, continueHtml) {
@@ -366,15 +394,6 @@ function render(focusHeading = false) {
   }
   lastRoute = routeKey;
   if (current.name !== 'review') { reviewQueue = null; reviewPosition = 0; }
-  if (current.name === 'lesson') {
-    const lesson = byLesson.get(current.id);
-    if (state.currentLessonId !== current.id || state.focusModule !== lesson.moduleId || state.guidedFlow) {
-      state.currentLessonId = current.id;
-      state.focusModule = lesson.moduleId;
-      state.guidedFlow = null;
-      save();
-    }
-  }
   const nav = ['start', 'guided', 'guided-done', 'lesson'].includes(current.name) ? 'today' : current.name === 'mission' ? 'missions' : current.name;
   document.querySelectorAll('[data-nav]').forEach((link) => {
     if (link.dataset.nav === nav) link.setAttribute('aria-current', 'page');
@@ -411,37 +430,33 @@ function render(focusHeading = false) {
   if (focusHeading) main.querySelector('h1')?.focus({ preventScroll: true });
 }
 
-function chooseAnswer(id, choice, mode) {
+async function navigate(focusHeading = true) {
+  const hash = location.hash;
+  const current = route();
+  if (current.name === 'lesson' && (state.currentLessonId !== current.id ||
+    state.focusModule !== byLesson.get(current.id).moduleId || state.guidedFlow)) {
+    await commit(() => store.selectLesson(current.id));
+  }
+  if (location.hash === hash) render(focusHeading);
+}
+
+async function chooseAnswer(id, choice, mode) {
   const lesson = byLesson.get(id);
   if (!lesson || !['guided', 'lesson', 'practice', 'review'].includes(mode) ||
       !Number.isInteger(choice) || choice < 0 || choice >= lesson.quiz.choices.length) return;
+  const hash = location.hash;
+  if (lesson.quiz.correct.includes(choice) && !await commit(() => store.answer(id, choice, mode))) return;
   attempts[mode + ':' + id] = choice;
-  if (lesson.quiz.correct.includes(choice)) {
-    if (mode === 'guided') {
-      const step = guided[lesson.moduleId]?.indexOf(id);
-      if (step >= 0) {
-        state.guidedFlow = { topic: lesson.moduleId, step: Math.max(state.guidedFlow?.step || 0, step + 1) };
-        save();
-      }
-      render(true);
-      return;
-    }
-    if (mode === 'lesson' && !state.completed[id]) state.completed[id] = Date.now();
-    state.answers[id] = choice;
-    if (state.completed[id]) state.review[id] = Date.now() + (mode === 'review' ? 3 : 1) * DAY;
-    if (mode === 'lesson') {
-      state.currentLessonId = id;
-      state.focusModule = lesson.moduleId;
-      state.guidedFlow = null;
-    }
-    save();
-  }
-  render(true);
+  if (location.hash === hash) render(true);
 }
 
-main.addEventListener('click', (event) => {
+main.addEventListener('click', async (event) => {
   const target = event.target.closest('button');
   if (!target) return;
+  if (target.dataset.saveNote && byLesson.has(target.dataset.saveNote)) {
+    await saveNote(target.dataset.saveNote, draftFor(target.dataset.saveNote).value);
+    return;
+  }
   if (target.dataset.copyExample) {
     const example = byLesson.get(target.dataset.copyExample)?.example;
     if (!example) return;
@@ -451,11 +466,8 @@ main.addEventListener('click', (event) => {
     return;
   }
   if (target.dataset.topic && guided[target.dataset.topic]) {
-    state.focusModule = target.dataset.topic;
-    state.currentLessonId = guided[target.dataset.topic][0];
-    state.guidedFlow = { topic: target.dataset.topic, step: state.guidedFlow?.topic === target.dataset.topic ? state.guidedFlow.step : 0 };
+    if (!await commit(() => store.startGuided(target.dataset.topic))) return;
     for (const key of Object.keys(attempts)) if (key.startsWith('guided:')) delete attempts[key];
-    save();
     location.hash = state.guidedFlow.step === 3 ? '#guided-done' : '#guided/' + state.guidedFlow.step;
     return;
   }
@@ -465,7 +477,7 @@ main.addEventListener('click', (event) => {
     return;
   }
   if (target.dataset.answerId) {
-    chooseAnswer(target.dataset.answerId, Number(target.dataset.choice), target.dataset.mode);
+    await chooseAnswer(target.dataset.answerId, Number(target.dataset.choice), target.dataset.mode);
     return;
   }
   if (target.dataset.retry) {
@@ -481,24 +493,23 @@ main.addEventListener('click', (event) => {
   if (target.dataset.missionComplete) {
     const mission = byMission.get(target.dataset.missionComplete);
     const index = Number(target.dataset.step);
-    if (!mission || index < 0 || index >= mission.steps.length) return;
-    state.missionSteps[mission.id] ||= mission.steps.map(() => false);
-    state.missionSteps[mission.id][index] = true;
-    save();
+    if (!mission || !Number.isInteger(index) || index < 0 || index >= mission.steps.length) return;
+    if (!await commit(() => store.setMissionStep(mission.id, index, true))) return;
     render(true);
     return;
   }
   if (target.dataset.missionUndo) {
     const mission = byMission.get(target.dataset.missionUndo);
     const index = Number(target.dataset.step);
-    if (!mission || index < 0 || index >= mission.steps.length) return;
-    state.missionSteps[mission.id][index] = false;
-    save();
+    if (!mission || !Number.isInteger(index) || index < 0 || index >= mission.steps.length) return;
+    if (!await commit(() => store.setMissionStep(mission.id, index, false))) return;
     render(true);
     return;
   }
   if (target.hasAttribute('data-export')) {
-    const blob = new Blob([JSON.stringify({ version: 1, savedAt: new Date().toISOString(), ...state }, null, 2)], { type: 'application/json' });
+    let saved;
+    try { saved = store.read(); } catch (error) { storageError(error); return; }
+    const blob = new Blob([JSON.stringify({ version: 1, savedAt: new Date().toISOString(), ...saved }, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -512,8 +523,7 @@ main.addEventListener('click', (event) => {
 main.addEventListener('input', (event) => {
   const id = event.target.dataset.noteId;
   if (!byLesson.has(id)) return;
-  state.notes[id] = event.target.value.slice(0, 2000);
-  save();
+  return saveNote(id, event.target.value.slice(0, 2000));
 });
 
 main.addEventListener('change', async (event) => {
@@ -521,17 +531,22 @@ main.addEventListener('change', async (event) => {
   if (!input?.files?.length) return;
   try {
     const file = input.files[0];
-    if (file.size > 2_000_000) throw new Error('File is too large');
-    const parsed = JSON.parse(await file.text());
-    if (parsed.version !== 1 || !parsed.completed || typeof parsed.completed !== 'object') throw new Error('This is not a progress file');
-    if (!confirm('Replace your current progress with the data in this file?')) return;
-    state = normalizeState(parsed);
-    save();
-    render(true);
-    announce('Progress loaded');
-  } catch (error) {
-    announce(error.message || 'Could not load the file');
-  }
+    if (file.size > 2_000_000) throw Object.assign(new Error(), { code: 'FILE_TOO_LARGE' });
+    let parsed;
+    try { parsed = JSON.parse(await file.text()); }
+    catch { throw Object.assign(new Error(), { code: 'INVALID_FILE' }); }
+    const imported = store.validateImport(parsed);
+    if (hasUnsavedNotes()) throw Object.assign(new Error(), { code: 'UNSAVED_NOTES' });
+    const { token } = store.snapshot({ allowInvalid: true });
+    if (!confirm('Replace current progress with the file’s data?')) return;
+    if (await commit(() => store.replace(imported, token), 'Progress imported')) {
+      drafts.clear();
+      for (const key of Object.keys(attempts)) delete attempts[key];
+      reviewQueue = null;
+      render(true);
+    }
+  } catch (error) { storageError(error); }
+  finally { input.value = ''; }
 });
 
 document.addEventListener('keydown', (event) => {
@@ -541,5 +556,45 @@ document.querySelector('.skip-link')?.addEventListener('click', (event) => {
   event.preventDefault();
   main.focus();
 });
-window.addEventListener('hashchange', () => render(true));
-render();
+function refreshProgress() {
+  let latest;
+  try { latest = store.read(); lastRefreshError = null; }
+  catch (error) {
+    const code = error?.code || 'STORAGE_FAILED';
+    if (code !== lastRefreshError) storageError(error);
+    lastRefreshError = code;
+    return;
+  }
+  if (JSON.stringify(latest) === JSON.stringify(state)) return;
+  state = latest;
+  for (const [id, draft] of drafts) {
+    if (!draft.pending && draft.value === draft.base) drafts.delete(id);
+  }
+  // Never replace an editor containing pending or failed text with remote state.
+  if (hasUnsavedNotes()) return;
+  const x = window.scrollX || 0;
+  const y = window.scrollY || 0;
+  const open = [...main.querySelectorAll('details')].map((item) => item.open);
+  const active = document.activeElement;
+  const focusedId = active?.id;
+  const selection = typeof active?.selectionStart === 'number'
+    ? [active.selectionStart, active.selectionEnd] : null;
+  render();
+  main.querySelectorAll('details').forEach((item, index) => { item.open = open[index] === true; });
+  if (focusedId) {
+    const replacement = document.getElementById?.(focusedId);
+    replacement?.focus({ preventScroll: true });
+    if (selection) replacement?.setSelectionRange?.(...selection);
+  }
+  window.scrollTo({ left: x, top: y, behavior: 'auto' });
+}
+window.addEventListener('storage', (event) => {
+  if (event.key === PROGRESS_KEY || event.key === null) refreshProgress();
+});
+window.addEventListener('focus', refreshProgress);
+window.addEventListener('beforeunload', (event) => {
+  if (hasUnsavedNotes()) { event.preventDefault(); event.returnValue = ''; }
+});
+window.addEventListener('hashchange', () => navigate(true));
+await navigate(false);
+if (initialLoadError) { storageError(initialLoadError); lastRefreshError = initialLoadError.code; }

@@ -37,21 +37,24 @@ globalThis.localStorage = {
   getItem(key) { return storage.get(key) ?? null; },
   setItem(key, value) { storage.set(key, value); },
 };
+Object.defineProperty(globalThis, 'navigator', { configurable: true, value: {
+  locks: { async request(name, options, callback) { return callback(); } },
+} });
 globalThis.location = { hash: '#today' };
 globalThis.window = {
   addEventListener(type, handler) { windowListeners[type] = handler; },
   scrollTo() {},
 };
 
-function visit(hash) {
+async function visit(hash) {
   location.hash = hash;
   assert.ok(windowListeners.hashchange, 'the app handles route changes');
-  windowListeners.hashchange();
+  await windowListeners.hashchange();
 }
 
-function click(dataset, attributes = []) {
+async function click(dataset, attributes = []) {
   assert.ok(main.handlers.click, 'the app handles button clicks');
-  main.handlers.click({ target: { closest(selector) {
+  await main.handlers.click({ target: { closest(selector) {
     return selector === 'button' ? {
       dataset,
       hasAttribute(name) { return attributes.includes(name); },
@@ -74,9 +77,9 @@ function firstQuestionId() {
   return match[1];
 }
 
-function answer(id, mode, choice) {
+async function answer(id, mode, choice) {
   assert.match(main.innerHTML, new RegExp(`data-answer-id="${id}"`, 'u'));
-  click({ answerId: id, mode, choice: String(choice) });
+  await click({ answerId: id, mode, choice: String(choice) });
 }
 
 await import('../dist/app.js');
@@ -84,58 +87,58 @@ assert.match(main.innerHTML, /class="primary-button" href="#start"/u, 'Russian h
 assert.doesNotMatch(main.innerHTML, /href="#path"/u, 'Russian first screen has no competing path link');
 assert.equal(languageLink.href, 'en.html#today', 'Russian page preserves the route in its language link');
 
-visit('#start');
+await visit('#start');
 assert.match(main.innerHTML, /Что сейчас хочется улучшить/u);
 assert.match(main.innerHTML, /data-topic="listening"/u);
-click({ topic: 'listening' });
-visit(location.hash);
+await click({ topic: 'listening' });
+await visit(location.hash);
 const lessonId = firstQuestionId();
 const lesson = ruLessons.find((item) => item.id === lessonId);
 assert.ok(lesson, 'the guided question comes from the Russian course');
-answer(lessonId, 'guided', lesson.quiz.correct[0]);
+await answer(lessonId, 'guided', lesson.quiz.correct[0]);
 assert.equal(saved().completed[lessonId], undefined, 'guided quiz does not mark a lesson complete');
 
-visit(`#lesson/${lessonId}`);
+await visit(`#lesson/${lessonId}`);
 assert.match(main.innerHTML, new RegExp(lesson.title, 'u'), 'a full lesson starts with one idea');
 assert.equal(languageLink.href, `en.html#lesson/${lessonId}`);
-click({ openQuestion: lessonId });
+await click({ openQuestion: lessonId });
 const wrong = lesson.quiz.choices.findIndex((_, index) => !lesson.quiz.correct.includes(index));
-answer(lessonId, 'lesson', wrong);
+await answer(lessonId, 'lesson', wrong);
 assert.equal(saved().completed[lessonId], undefined, 'wrong lesson answer does not mark completion');
 assert.match(main.innerHTML, /Попробуйте другой ответ/u);
-click({ retry: lessonId, mode: 'lesson' });
-answer(lessonId, 'lesson', lesson.quiz.correct[0]);
+await click({ retry: lessonId, mode: 'lesson' });
+await answer(lessonId, 'lesson', lesson.quiz.correct[0]);
 assert.ok(saved().completed[lessonId], 'correct full-lesson answer marks completion');
 assert.match(main.innerHTML, /КОРОТКИЙ РАЗБОР/u);
 
-visit('#about');
+await visit('#about');
 assert.match(main.innerHTML, /давление, угрозы или страх/u, 'Russian about page retains the safety note');
-visit(`#lesson/${lessonId}`);
+await visit(`#lesson/${lessonId}`);
 
 await import('../dist/app.en.js');
 const englishLesson = enLessons.find((item) => item.id === lessonId);
 assert.ok(englishLesson);
 assert.match(main.innerHTML, new RegExp(englishLesson.title, 'u'), 'the English lesson renders translated text');
 assert.equal(languageLink.href, `index.html#lesson/${lessonId}`, 'English link preserves the lesson route');
-visit('#progress');
+await visit('#progress');
 assert.match(main.innerHTML, /1 (?:of|\/) 32/u, 'English progress includes the lesson completed in Russian');
-visit('#start');
+await visit('#start');
 assert.match(main.innerHTML, /data-topic="needs"/u, 'English route offers a single topic choice');
-click({ topic: 'needs' });
-visit(location.hash);
+await click({ topic: 'needs' });
+await visit(location.hash);
 const englishQuestionId = firstQuestionId();
 const nextEnglishLesson = enLessons.find((item) => item.id === englishQuestionId);
 assert.ok(nextEnglishLesson, 'the English guided question comes from the translated course');
 assert.ok(main.innerHTML.includes(nextEnglishLesson.quiz.prompt), 'the guided question is in English');
-answer(englishQuestionId, 'guided', nextEnglishLesson.quiz.correct[0]);
+await answer(englishQuestionId, 'guided', nextEnglishLesson.quiz.correct[0]);
 assert.equal(Object.keys(saved().completed).length, 1, 'English guided quiz does not change lesson progress');
-visit(`#lesson/${englishQuestionId}`);
-click({ openQuestion: englishQuestionId });
-answer(englishQuestionId, 'lesson', nextEnglishLesson.quiz.correct[0]);
+await visit(`#lesson/${englishQuestionId}`);
+await click({ openQuestion: englishQuestionId });
+await answer(englishQuestionId, 'lesson', nextEnglishLesson.quiz.correct[0]);
 assert.ok(saved().completed[englishQuestionId], 'English full lesson uses the same saved progress');
-visit('#progress');
+await visit('#progress');
 assert.match(main.innerHTML, /2 (?:of|\/) 32/u, 'English progress includes lessons from both languages');
-visit('#about');
+await visit('#about');
 assert.match(main.innerHTML, /pressure|threats|fear/iu, 'English about page retains the safety note');
 assert.equal(languageLink.href, 'index.html#about');
 

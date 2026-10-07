@@ -10,8 +10,10 @@ permissions:
   contents: read
 
 concurrency:
-  group: github-pages
-  cancel-in-progress: false
+  # Only a real main-branch publication may share the Pages queue.
+  # PRs and manual feature-branch runs use branch/ref-scoped validation queues.
+  group: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && 'github-pages' || format('orbity-{0}', github.ref) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.ref != 'refs/heads/main' }}
 
 jobs:
   validate:
@@ -25,10 +27,12 @@ jobs:
           node --check dist/app.en.js
           node --check dist/course.js
           node --check dist/course.en.js
+          node --check dist/progress-store.js
           node tests/locales.mjs
           node tests/ui-smoke.mjs
+          node --test tests/progress-safety.mjs tests/ui-safety.mjs tests/workflow-safety.mjs
   deploy:
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     needs: validate
     runs-on: ubuntu-latest
     permissions:
