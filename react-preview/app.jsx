@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import * as ru from '../dist/course.js';
 import * as en from '../dist/course.en.js';
-import { createProgressStore, PROGRESS_KEY } from '../dist/progress-store.js';
+import { createProgressStore, PROGRESS_KEY, hasLessonStart } from '../dist/progress-store.js';
 import { metrics, prepareImport, backupJSON } from './model.mjs';
 import { learningRoute, resumeTarget, nextLesson } from './navigation.mjs';
 import { TopicPicker, Guided } from './guided.jsx';
@@ -10,10 +10,11 @@ import './style.css';
 import './lumi.css';
 import { Lumi, LumiPortrait } from './lumi.jsx';
 
-const store = createProgressStore({ lessons: ru.lessons, missions: ru.missions });
+const store = createProgressStore({ lessons: ru.lessons, missions: ru.missions, requireLessonStart: true });
 const accents = ['#b7c6ff', '#c9ee92', '#ffcf88', '#d8bdff', '#ffbab6', '#a9e6dd', '#f4bde7', '#cbdc9f'];
 const symbols = ['✦', '◉', '♡', '☾', '◇', '⌂', '☀', '∞'];
 const errorCopy = {
+  LESSON_NOT_STARTED: ['Начните этот урок с первого шага. Сохранённое место могло измениться в другой вкладке; ответ не записан.', 'Start this lesson from step one. Another tab may have changed your saved place; the answer was not saved.'],
   INVALID_STORED: ['Сохранённые данные повреждены. В «Прогрессе» можно восстановить проверенную резервную копию. Мы ничего не стираем.', 'Saved data is invalid. Restore a valid backup in Progress. Nothing has been erased.'],
   STORAGE_FAILED: ['Не удалось сохранить или прочитать данные. Проверьте доступ к хранилищу и повторите. Несохранённый текст пока остаётся в этой вкладке.', 'Storage could not be read or written. Check browser storage and retry. Unsaved text remains in this tab for now.'],
   LOCK_UNAVAILABLE: ['Безопасное сохранение недоступно. Нужен браузер с Web Locks и HTTPS или localhost.', 'Safe saving is unavailable. Use a browser with Web Locks over HTTPS or localhost.'],
@@ -316,6 +317,7 @@ function MissionDetail({ mission, state, pending, t, write, go }) {
   </section>;
 }
 function Lesson({ lesson, mode, step, state, pending, t, write, notePanel, go }) {
+  const needsStart = mode === 'lesson' && step === 2 && !hasLessonStart(state, lesson.id);
   const [choice, setChoice] = useState(null);
   const [feedback, setFeedback] = useState(null);
   useEffect(() => { setChoice(null); setFeedback(null); document.getElementById('page-title')?.focus(); }, [step]);
@@ -327,11 +329,15 @@ function Lesson({ lesson, mode, step, state, pending, t, write, notePanel, go })
     if (await write(() => store.answer(lesson.id, choice, storeMode))) setFeedback('done');
   }
   return <section className="lesson-screen"><div className="lesson-top"><button className="secondary" onClick={() => go('path')}>← {t('К маршруту', 'Back to path')}</button><span>{mode === 'practice' ? t('ПРАКТИКА', 'PRACTICE') : `${t('ШАГ', 'STEP')} ${step + 1}/3`}</span></div>
-    <progress value={feedback === 'done' ? 3 : step + 1} max={3} aria-label={t('Шаг урока', 'Lesson step')}/>
+    <progress value={needsStart ? 0 : feedback === 'done' ? 3 : step + 1} max={3} aria-label={t('Шаг урока', 'Lesson step')}/>
     <article className="lesson-card"><span className="eyebrow">{lesson.minutes} {t('МИНУТ НА ПОЛНЫЙ УРОК', 'MINUTES FOR THE FULL LESSON')}</span><h1 id="page-title" tabIndex={-1}>{lesson.title}</h1>
       {step === 0 && <><p className="lead">{lesson.summary}</p><div className="principle"><span aria-hidden="true">✦</span><p>{lesson.principle}</p></div><h2>{t('Как это звучит', 'What it can sound like')}</h2><blockquote>{lesson.example}</blockquote><button className="primary" disabled={!!pending || !state} onClick={() => setStep(1)}>{t('Попробуем', 'Let’s try it')} →</button></>}
       {step === 1 && <><h2>{t('Один шаг в жизни', 'One real-life step')}</h2><p className="lead">{lesson.action}</p>{notePanel(lesson.id)}<p className="muted">{t('Можно обдумать сейчас и попробовать позже. Участие другого человека — только по согласию.', 'Reflect now and try it later. The other person’s participation is always optional.')}</p><div className="button-row"><button className="secondary" disabled={!!pending} onClick={() => setStep(0)}>{t('Назад', 'Back')}</button><button className="primary" disabled={!!pending || !state} onClick={() => setStep(2)}>{t('Проверить понимание', 'Check understanding')} →</button></div></>}
-      {step === 2 && <><h2 id="quiz-prompt">{lesson.quiz.prompt}</h2><div className="choices" role="group" aria-labelledby="quiz-prompt">{lesson.quiz.choices.map((text, i) => <button key={i} className={`choice ${choice === i ? 'selected' : ''}`} aria-pressed={choice === i} disabled={!!pending || feedback === 'done'} onClick={() => { setChoice(i); setFeedback(null); }}><span className="choice-number" aria-hidden="true">{i + 1}</span>{text}</button>)}</div>
+      {needsStart && <section data-testid="lesson-start-required"><h2>{t('Сначала начнём урок', 'Let’s start the lesson first')}</h2>
+        <p className="lead">{t('Ссылка на итоговый вопрос не подтверждает начало урока. Начните с первого шага — заметки и пройденные уроки останутся на месте.', 'A link to the final question does not confirm a lesson start. Begin with step one; your notes and completed lessons stay intact.')}</p>
+        <button className="primary" disabled={!state || !!pending} onClick={() => go(`lesson/${lesson.id}`)}>{t('Начать урок с первого шага', 'Start this lesson from step one')}</button>
+      </section>}
+      {step === 2 && !needsStart && <><h2 id="quiz-prompt">{lesson.quiz.prompt}</h2><div className="choices" role="group" aria-labelledby="quiz-prompt">{lesson.quiz.choices.map((text, i) => <button key={i} className={`choice ${choice === i ? 'selected' : ''}`} aria-pressed={choice === i} disabled={!!pending || feedback === 'done'} onClick={() => { setChoice(i); setFeedback(null); }}><span className="choice-number" aria-hidden="true">{i + 1}</span>{text}</button>)}</div>
         {feedback === 'retry' && <div className="feedback retry" role="status"><LumiPortrait mood="support"/><strong>{t('Хорошая попытка. Посмотрим ещё раз.', 'Good try. Let’s look again.')}</strong><p>{lesson.quiz.explanation}</p></div>}
         {feedback === 'done' ? <div className="feedback success" role="status"><LumiPortrait mood="success"/><h2>{mode === 'practice' ? t('Практика сохранена!', 'Practice saved!') : t('Урок завершён!', 'Lesson complete!')}</h2><p>{lesson.quiz.explanation}</p><p>{mode === 'practice' ? t('Практика не отмечает новый урок завершённым и не добавляет XP.', 'Practice does not complete a new lesson or award XP.') : t('20 XP за первое завершение. Повторы не начисляют опыт снова.', '20 XP for the first completion. Replays do not add more experience.')}</p><button className="primary" onClick={() => go('path')}>{t('Вернуться к маршруту', 'Return to the path')} →</button></div> : <div className="button-row">{mode !== 'practice' && <button className="secondary" disabled={!!pending} onClick={() => setStep(1)}>{t('Назад', 'Back')}</button>}<button className="primary" disabled={choice === null || !!pending || !state} onClick={check}>{pending ? t('Сохраняем…', 'Saving…') : t('Проверить ответ', 'Check answer')}</button></div>}
       </>}

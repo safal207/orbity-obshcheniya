@@ -3,6 +3,9 @@
 export const PROGRESS_KEY = 'orbity-dialoga-progress-v1';
 export const emptyState = () => ({ completed: {}, answers: {}, notes: {}, review: {}, missionSteps: {},
   focusModule: null, currentLessonId: null, guidedFlow: null });
+// Existing v1 bookmark is sufficient for reload; a guided cursor is not a lesson start.
+export const hasLessonStart = (state, id) => !!state && typeof id === 'string' &&
+  state.currentLessonId === id && state.guidedFlow == null;
 const fields = ['completed', 'answers', 'notes', 'review', 'missionSteps'];
 const navigationFields = ['focusModule', 'currentLessonId', 'guidedFlow'];
 const record = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -13,7 +16,7 @@ export function createProgressStore({ lessons, missions, storage = () => globalT
     listening: ['listening-3', 'listening-1', 'listening-2'],
     conflict: ['conflict-1', 'conflict-2', 'conflict-3'],
     needs: ['needs-1', 'needs-2', 'needs-3'],
-  } }) {
+  }, requireLessonStart = false }) {
   const lessonById = new Map(lessons.map((lesson) => [lesson.id, lesson]));
   const missionById = new Map(missions.map((mission) => [mission.id, mission]));
 
@@ -134,6 +137,8 @@ export function createProgressStore({ lessons, missions, storage = () => globalT
       if (!lesson || !['lesson', 'practice', 'review', 'guided'].includes(mode) ||
         !Number.isInteger(choice) || choice < 0 || choice >= lesson.quiz.choices.length) fail('INVALID_EDIT');
       return transaction((latest) => {
+        // Check inside the lock: another tab may have changed the bookmark while queued.
+        if (mode === 'lesson' && requireLessonStart && !hasLessonStart(latest, id)) fail('LESSON_NOT_STARTED');
         if (!lesson.quiz.correct.includes(choice)) return latest;
         if (mode === 'guided') {
           const step = guided[lesson.moduleId]?.indexOf(id);

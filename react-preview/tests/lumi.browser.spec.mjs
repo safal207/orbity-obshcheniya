@@ -47,7 +47,10 @@ for (const lang of ['ru', 'en']) {
   test(`Lumi lesson ${lang}: support on a wrong answer or failed save, joy only after retry persists`, async ({ page }, info) => {
     await page.setViewportSize({ width: 320, height: 900 });
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    await page.goto(`/?lang=${lang}#lesson/map-1/2`);
+    // Establish the full-lesson bookmark through the UI before testing save feedback.
+    await page.goto(`/?lang=${lang}#lesson/map-1`);
+    await page.getByRole('button', { name: lang === 'ru' ? 'Попробуем' : 'Let’s try it' }).click();
+    await page.getByRole('button', { name: lang === 'ru' ? 'Проверить понимание' : 'Check understanding' }).click();
     const choice = page.locator('.choice');
     await expect(choice.first()).toBeEnabled();
     const before = await raw(page);
