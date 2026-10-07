@@ -6,6 +6,8 @@ import { createProgressStore, PROGRESS_KEY, hasLessonStart } from '../dist/progr
 import { metrics, prepareImport, backupJSON } from './model.mjs';
 import { learningRoute, resumeTarget, nextLesson } from './navigation.mjs';
 import { TopicPicker, Guided } from './guided.jsx';
+import { Review } from './review.jsx';
+import { ResultDetails } from './result-details.jsx';
 import './style.css';
 import './lumi.css';
 import { Lumi, LumiPortrait } from './lumi.jsx';
@@ -26,7 +28,10 @@ const errorCopy = {
   UNSAVED: ['Сначала сохраните или скопируйте несохранённые заметки. Импорт пока заблокирован.', 'Save or copy unsaved notes first. Import is blocked while drafts exist.'],
 };
 function App() {
-  const [lang, setLang] = useState(new URLSearchParams(location.search).get('lang') === 'en' ? 'en' : 'ru');
+  const [lang, setLang] = useState(() => {
+    const query = new URLSearchParams(location.search).get('lang');
+    return query === 'ru' || query === 'en' ? query : location.pathname.endsWith('/en.html') ? 'en' : 'ru';
+  });
   const t = (a, b) => lang === 'ru' ? a : b;
   const course = lang === 'ru' ? ru : en;
   const [state, setState] = useState(null);
@@ -84,7 +89,7 @@ function App() {
   }, [refresh]);
   useEffect(() => {
     document.documentElement.lang = lang;
-    document.title = t('Орбиты общения', 'Conversation Orbits') + ' · React preview';
+    document.title = t('Орбиты общения', 'Conversation Orbits');
     const url = new URL(location.href); url.searchParams.set('lang', lang);
     history.replaceState(history.state, '', url);
   }, [lang]);
@@ -230,7 +235,7 @@ function App() {
   const next = unitLessons.find((l) => !state?.completed[l.id]) || unitLessons[0];
   const selectedLesson = course.lessons.find((l) => l.id === route.id);
   const review = stats?.due[0] || course.lessons.find((l) => state?.completed[l.id]) || next;
-  const lesson = route.view === 'review' ? review : selectedLesson;
+  const lesson = selectedLesson;
   const mission = course.missions.find((item) => item.id === route.missionId);
   const resume = resumeTarget(state, course.lessons);
   const savedNext = nextLesson(state, course.lessons);
@@ -245,7 +250,6 @@ function App() {
         <button key={id} className={`nav-item ${activeNav === id ? 'active' : ''}`}
           aria-current={activeNav === id ? 'page' : undefined} onClick={() => go(id)}><span aria-hidden="true">{icon}</span>{name}</button>)}</nav>
       <div className="sidebar-note"><span>✦</span><p>{t('Не идеальные слова. Настоящее внимание.', 'Not perfect words. Real attention.')}</p></div>
-      <small className="preview-label">REACT PREVIEW · 0.1</small>
     </aside>
     <div className="workspace">
       <header className="topbar"><span className="small-brand">{t('Орбиты общения', 'Conversation Orbits')}</span>
@@ -275,12 +279,13 @@ function App() {
                 })}</ol><div className="unit-finish"><span aria-hidden="true">✧</span>{t('Каждый разговор — новая возможность.', 'Every conversation is another opportunity.')}</div>
               </section></div>
             <aside className="right-rail"><section className="goal card"><div className="card-heading"><h2>{t('Шаг на сегодня', 'A step for today')}</h2><span aria-hidden="true">☀</span></div><p>{t('Один новый урок. Без гонки и давления.', 'One new lesson. No rush, no pressure.')}</p><progress value={Math.min(stats?.today || 0, 1)} max={1} aria-label={t('Один новый урок сегодня', 'One new lesson today')}/><strong>{stats?.today ? t('Ваш шаг сделан ✓', 'You took your step ✓') : t('Начните с любопытства', 'Start with curiosity')}</strong></section>
-              <section className="card practice-card"><span className="big-symbol" aria-hidden="true">↺</span><h2>{t('Закрепим хорошее', 'Make it stick')}</h2><p>{stats?.due.length ? `${stats.due.length} ${t('уроков пора повторить', 'lessons ready for review')}` : t('Один вопрос, чтобы вспомнить важное.', 'One question to revisit something useful.')}</p><button className="secondary" onClick={() => go(`practice/${review.id}`)}>{t('Короткая практика', 'Quick practice')}</button></section>
+              <section className="card practice-card"><span className="big-symbol" aria-hidden="true">↺</span><h2>{t('Закрепим хорошее', 'Make it stick')}</h2><p>{stats?.due.length ? `${stats.due.length} ${t('уроков пора повторить', 'lessons ready for review')}` : t('Один вопрос, чтобы вспомнить важное.', 'One question to revisit something useful.')}</p><button className="secondary" onClick={() => go(`practice/${review.id}`)}>{t('Короткая практика', 'Quick practice')}</button><div className="button-row"><button className="secondary" onClick={() => go('review')}>{t('Повторить пройденное', 'Review completed lessons')}</button></div></section>
               <section className="kind-note"><span aria-hidden="true">♡</span><p>{t('Здесь нет «плохих партнёров» и потерянных жизней. Можно ошибаться, делать паузу и возвращаться.', 'No “bad partners”, no lost lives. You can make mistakes, take a break and return.')}</p></section>
             </aside></div>}
           {route.view === 'start' && <TopicPicker state={state} pending={pending} t={t} start={start}/>}
           {route.view === 'guided' && (guidedTopic ? <Guided key={guidedTopic} topic={guidedTopic} state={state} course={course} store={store} pending={pending} t={t} write={write} notePanel={notePanel} go={go} onSync={() => setError((current) => current === 'FLOW_CONFLICT' ? null : current)}/> : <TopicPicker state={state} pending={pending} t={t} start={start}/>)}
-          {lesson && <Lesson key={`${route.view}/${lesson.id}`} lesson={lesson} mode={route.view === 'review' ? 'practice' : route.view} step={route.step ?? 2} state={state} pending={pending} t={t} write={write} notePanel={notePanel} go={go}/>}
+          {route.view === 'review' && <Review state={state} course={course} store={store} pending={pending} t={t} write={write} notePanel={notePanel} go={go} onSync={() => setError((current) => current === 'FLOW_CONFLICT' ? null : current)}/>}
+          {lesson && <Lesson key={`${route.view}/${lesson.id}`} lesson={lesson} mode={route.view} step={route.step ?? 2} state={state} pending={pending} t={t} write={write} notePanel={notePanel} go={go}/>}
           {route.view === 'missions' && <section className="content-page"><span className="eyebrow">{t('ИЗ ПРИЛОЖЕНИЯ — В РАЗГОВОР', 'FROM PRACTICE TO CONVERSATION')}</span><h1 id="page-title" tabIndex={-1}>{t('Маленькие дела.', 'Little actions.')}<br/>{t('Настоящее внимание.', 'Real attention.')}</h1><p className="lead">{t('Попробуйте, когда обоим комфортно. Отметка — ваша запись, а не оценка отношений.', 'Try these when you both feel comfortable. Checkmarks are your records, not relationship scores.')}</p><div className="missions-grid">{course.missions.map((m, i) => <article className="card mission" key={m.id} style={{ '--accent': accents[i] }}><span className="mission-icon" aria-hidden="true">{symbols[i]}</span><h2>{m.title}</h2><p>{m.description}</p>{m.steps.map((step, j) => <label className="mission-step" key={j}><input type="checkbox" checked={!!state?.missionSteps[m.id]?.[j]} disabled={!state || !!pending} onChange={(e) => write(() => store.setMissionStep(m.id, j, e.target.checked))}/><span>{step}</span></label>)}<button className="secondary" disabled={!!pending} onClick={() => go(`mission/${m.id}`)}>{t('Открыть пошагово', 'Open step by step')}</button></article>)}</div></section>}
           {route.view === 'mission' && mission && <MissionDetail mission={mission} state={state} pending={pending} t={t} write={write} go={go}/>}
 
@@ -293,7 +298,7 @@ function App() {
             {course.lessons.filter((l) => state?.notes[l.id] || drafts.current.has(l.id)).map((l) => <details className="card" key={l.id}><summary>{l.title}</summary>{notePanel(l.id)}</details>)}
           </section>}
         </>}
-        <footer><details><summary>{t('Бережно к себе и вашим данным', 'Care for yourself and your data')}</summary><p>{t('Это учебный тренажёр, не терапия. Он не определяет характер по полу и не доказывает улучшение отношений. При угрозах или насилии важнее безопасность, а не выполнение заданий.', 'This is a learning tool, not therapy. It does not define character by gender or prove relationship improvement. In situations involving threats or violence, safety comes before exercises.')}</p><p>{t('RU и EN используют одно хранилище. Черновики остаются только в открытой вкладке, не в резервной копии. При переходе на эту версию перезагрузите старые вкладки.', 'RU and EN share storage. Unsaved drafts live only in the open tab and are not backups. Reload older tabs when switching to this version.')}</p><p>{t('Адрес сохраняет экран урока при обновлении и переходах Назад/Вперёд. При открытии главной кнопка продолжения возвращает к сохранённому уроку или вопросу знакомства.', 'The address preserves the lesson screen on reload and Back/Forward. From the home page, Continue returns to your saved lesson or introduction question.')}</p></details><small>{t('Орбиты общения · экспериментальный React-интерфейс', 'Conversation Orbits · experimental React interface')}</small></footer>
+        <footer><details><summary>{t('Бережно к себе и вашим данным', 'Care for yourself and your data')}</summary><p>{t('Это учебный тренажёр, не терапия. Он не определяет характер по полу и не доказывает улучшение отношений. При угрозах или насилии важнее безопасность, а не выполнение заданий.', 'This is a learning tool, not therapy. It does not define character by gender or prove relationship improvement. In situations involving threats or violence, safety comes before exercises.')}</p><p>{t('RU и EN используют одно хранилище. Черновики остаются только в открытой вкладке, не в резервной копии. При переходе на эту версию перезагрузите старые вкладки.', 'RU and EN share storage. Unsaved drafts live only in the open tab and are not backups. Reload older tabs when switching to this version.')}</p><p>{t('Адрес сохраняет экран урока при обновлении и переходах Назад/Вперёд. При открытии главной кнопка продолжения возвращает к сохранённому уроку или вопросу знакомства.', 'The address preserves the lesson screen on reload and Back/Forward. From the home page, Continue returns to your saved lesson or introduction question.')}</p></details><small>{t('Орбиты общения · маленькие шаги к пониманию', 'Conversation Orbits · small steps toward understanding')}</small></footer>
       </main>
     </div>
   </div>;
@@ -362,7 +367,7 @@ function Lesson({ lesson, mode, step, state, pending, t, write, notePanel, go })
       </section>}
       {step === 2 && !needsStart && <><h2 id="quiz-prompt">{lesson.quiz.prompt}</h2><div className="choices" role="group" aria-labelledby="quiz-prompt">{lesson.quiz.choices.map((text, i) => <button key={i} className={`choice ${choice === i ? 'selected' : ''}`} aria-pressed={choice === i} disabled={!!pending || feedback === 'done'} onClick={() => { setChoice(i); setFeedback(null); }}><span className="choice-number" aria-hidden="true">{i + 1}</span>{text}</button>)}</div>
         {feedback === 'retry' && <div className="feedback retry" role="status"><LumiPortrait mood="support"/><strong>{t('Хорошая попытка. Посмотрим ещё раз.', 'Good try. Let’s look again.')}</strong><p>{lesson.quiz.explanation}</p></div>}
-        {feedback === 'done' ? <div className="feedback success" role="status"><LumiPortrait mood="success"/><h2>{mode === 'practice' ? t('Практика сохранена!', 'Practice saved!') : t('Урок завершён!', 'Lesson complete!')}</h2><p>{lesson.quiz.explanation}</p><p>{mode === 'practice' ? t('Практика не отмечает новый урок завершённым и не добавляет XP.', 'Practice does not complete a new lesson or award XP.') : t('20 XP за первое завершение. Повторы не начисляют опыт снова.', '20 XP for the first completion. Replays do not add more experience.')}</p><button className="primary" onClick={() => go('path')}>{t('Вернуться к маршруту', 'Return to the path')} →</button></div> : <div className="button-row">{mode !== 'practice' && <button className="secondary" disabled={!!pending} onClick={() => setStep(1)}>{t('Назад', 'Back')}</button>}<button className="primary" disabled={choice === null || !!pending || !state} onClick={check}>{pending ? t('Сохраняем…', 'Saving…') : t('Проверить ответ', 'Check answer')}</button></div>}
+        {feedback === 'done' ? <div className="feedback success" role="status"><LumiPortrait mood="success"/><h2>{mode === 'practice' ? t('Практика сохранена!', 'Practice saved!') : t('Урок завершён!', 'Lesson complete!')}</h2><p>{lesson.quiz.explanation}</p><ResultDetails lesson={lesson} t={t} notePanel={notePanel}/><p>{mode === 'practice' ? t('Практика не отмечает новый урок завершённым и не добавляет XP.', 'Practice does not complete a new lesson or award XP.') : t('20 XP за первое завершение. Повторы не начисляют опыт снова.', '20 XP for the first completion. Replays do not add more experience.')}</p><button className="primary" onClick={() => go('path')}>{t('Вернуться к маршруту', 'Return to the path')} →</button></div> : <div className="button-row">{mode !== 'practice' && <button className="secondary" disabled={!!pending} onClick={() => setStep(1)}>{t('Назад', 'Back')}</button>}<button className="primary" disabled={choice === null || !!pending || !state} onClick={check}>{pending ? t('Сохраняем…', 'Saving…') : t('Проверить ответ', 'Check answer')}</button></div>}
       </>}
     </article></section>;
 }

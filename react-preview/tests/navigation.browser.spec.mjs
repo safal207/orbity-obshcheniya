@@ -101,7 +101,7 @@ test('legacy review, module, mission and about links stay useful in React', asyn
   await seed(page, state);
 
   await page.goto('/#review');
-  await expect(page.locator('.lesson-top')).toContainText('ПРАКТИКА');
+  await expect(page.locator('.lesson-top')).toContainText('ПОВТОРЕНИЕ · ВОПРОС 1/1');
   expect((await read(page)).completed).toEqual({ 'map-1': 1000 });
 
   await page.goto('/#module/needs');

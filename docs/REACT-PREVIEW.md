@@ -1,5 +1,10 @@
 # React orbit path — staged migration, not a production switch
 
+Historical implementation snapshot. The subsequent public React release, its
+remaining manual verification limits and current build/deploy commands are
+documented in [REACT-RELEASE.md](REACT-RELEASE.md). The open tails below describe
+the original preview and are not a current task list.
+
 Base: progress-safety PR #2 at `5a5f4c2c71a5474e82c9fef22ad32bb302cf7602`.
 User direction: brighter, more appealing React UI with a short-lesson path and
 supportive gamification inspired by Duolingo, using our own orbital identity.

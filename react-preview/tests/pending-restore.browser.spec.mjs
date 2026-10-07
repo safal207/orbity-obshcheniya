@@ -91,7 +91,7 @@ for (const lang of ['ru', 'en']) {
     page.removeAllListeners('dialog');
     page.once('dialog', (dialog) => dialog.accept());
     await fileInput.setInputFiles(upload());
-    await expect(page.locator('.notice')).toContainText(lang === 'ru' ? 'восстановлена' : 'restored');
+    await expect(page.locator('.notice')).toHaveText(lang === 'ru' ? 'Резервная копия восстановлена.' : 'Backup restored.');
     expect(await raw(page)).toBe(JSON.stringify(restored()));
 
     await page.getByRole('button', { name: lang === 'ru' ? 'Маршрут' : 'Learn', exact: true }).click();

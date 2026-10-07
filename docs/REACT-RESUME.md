@@ -1,5 +1,8 @@
 # React preview: resume and guided entry
 
+Historical implementation snapshot. See [REACT-RELEASE.md](REACT-RELEASE.md) for
+the current public-site build and verification contract.
+
 This increment extends draft PR #3 on its existing PR #2 safety base. It does not
 change `dist/`, the production Pages workflow, the v1 schema or course content.
 

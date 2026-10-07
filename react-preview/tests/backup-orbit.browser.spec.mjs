@@ -48,7 +48,7 @@ for (const lang of ['ru', 'en']) {
       const expected = JSON.stringify({ ...maps(), focusModule: null, currentLessonId: null, guidedFlow: null, ...backup });
       page.once('dialog', (dialog) => dialog.accept());
       await page.locator('input[type=file]').setInputFiles(upload(backup));
-      await expect(page.locator('.notice')).toContainText(lang === 'ru' ? 'восстановлена' : 'restored');
+      await expect(page.locator('.notice')).toHaveText(lang === 'ru' ? 'Резервная копия восстановлена.' : 'Backup restored.');
       expect(await raw(page)).toBe(expected);
       await nav(page, lang, 'path').click();
       await expect(page.locator('#unit')).toHaveValue(expectedOrbit);
@@ -86,7 +86,7 @@ for (const lang of ['ru', 'en']) {
       await page.evaluate(() => { location.hash = 'module/needs'; });
       await expect(page.locator('#unit')).toHaveValue('needs');
     } finally { await releaseLock(page); }
-    await expect(page.locator('.notice')).toContainText(lang === 'ru' ? 'восстановлена' : 'restored');
+    await expect(page.locator('.notice')).toHaveText(lang === 'ru' ? 'Резервная копия восстановлена.' : 'Backup restored.');
     await expect(page).toHaveURL(/#module\/needs$/);
     await expect(page.locator('#unit')).toHaveValue('needs');
     expect(JSON.parse(await raw(page)).focusModule).toBe('map');
