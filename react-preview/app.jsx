@@ -191,6 +191,10 @@ function App() {
   }
   async function importFile(file) {
     if (!file) return;
+    if (pendingWrites.current > 0) {
+      if (fileRef.current) fileRef.current.value = '';
+      return;
+    }
     setNotice('');
     try {
       const prepared = await prepareImport(file, store, hasDrafts);
@@ -285,7 +289,7 @@ function App() {
             <Lumi t={t} message={t('Пауза не отнимает опыт. Возвращайтесь, когда будет удобно.', 'Breaks do not remove experience. Return when it suits you.')}/>
             <div className="metric-grid"><div className="card"><span>✦</span><strong data-testid="xp-total">{stats ? stats.xp : '—'}</strong><p>{t('очков опыта', 'experience points')}</p></div><div className="card"><span>◉</span><strong>{stats ? `${stats.count}/${stats.total}` : '—'}</strong><p>{t('уроков завершено', 'lessons completed')}</p></div><div className="card"><span>☀</span><strong>{stats ? stats.streak : '—'}</strong><p>{t('дней подряд с новым уроком', 'consecutive days with a new lesson')}</p></div></div>
             <p className="muted">{t('Серия учитывает только первое завершение урока по местной дате. Повторы не добавляют XP. Паузы не отнимают накопленный опыт.', 'The series counts only first lesson completions by local date. Replays do not add XP. Breaks never remove earned experience.')}</p>
-            <section className="card backup"><h2>{t('Ваш прогресс — у вас', 'Your progress stays with you')}</h2><p>{t('Данные сохраняются в этом браузере, без отправки на сервер. Скачивайте резервную копию перед очисткой браузера или сменой устройства.', 'Data stays in this browser and is not sent to a server. Export a backup before clearing browser data or changing devices.')}</p><div className="button-row"><button className="primary" disabled={!state || !!pending} onClick={exportFile}>{t('Скачать копию', 'Export backup')}</button><button className="secondary" onClick={() => fileRef.current?.click()}>{t('Восстановить из файла', 'Restore from file')}</button><input ref={fileRef} type="file" accept="application/json,.json" className="visually-hidden" aria-label={t('Резервная копия JSON', 'JSON backup')} onChange={(e) => importFile(e.target.files?.[0])}/></div>{hasDrafts() && <p role="status">{t('Есть несохранённые заметки. Экспорт их не включает; импорт заблокирован.', 'There are unsaved notes. Export excludes them; import is blocked.')}</p>}</section>
+            <section className="card backup"><h2>{t('Ваш прогресс — у вас', 'Your progress stays with you')}</h2><p>{t('Данные сохраняются в этом браузере, без отправки на сервер. Скачивайте резервную копию перед очисткой браузера или сменой устройства.', 'Data stays in this browser and is not sent to a server. Export a backup before clearing browser data or changing devices.')}</p><div className="button-row"><button className="primary" disabled={!state || !!pending} onClick={exportFile}>{t('Скачать копию', 'Export backup')}</button><button className="secondary" disabled={!!pending} onClick={() => fileRef.current?.click()}>{t('Восстановить из файла', 'Restore from file')}</button><input ref={fileRef} type="file" accept="application/json,.json" className="visually-hidden" disabled={!!pending} aria-label={t('Резервная копия JSON', 'JSON backup')} onChange={(e) => importFile(e.target.files?.[0])}/></div>{hasDrafts() && <p role="status">{t('Есть несохранённые заметки. Экспорт их не включает; импорт заблокирован.', 'There are unsaved notes. Export excludes them; import is blocked.')}</p>}</section>
             {course.lessons.filter((l) => state?.notes[l.id] || drafts.current.has(l.id)).map((l) => <details className="card" key={l.id}><summary>{l.title}</summary>{notePanel(l.id)}</details>)}
           </section>}
         </>}
