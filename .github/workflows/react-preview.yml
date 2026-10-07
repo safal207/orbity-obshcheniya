@@ -1,0 +1,53 @@
+name: React preview acceptance
+on:
+  push:
+    branches: [feat/react-orbit-path]
+  pull_request:
+    paths:
+      - 'react-preview/**'
+      - 'dist/course*.js'
+      - 'dist/progress-store.js'
+      - '.github/workflows/react-preview.yml'
+permissions:
+  contents: read
+concurrency:
+  group: react-preview-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: react-preview
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned direct dependencies
+        run: npm install --no-fund --no-audit
+      - name: Unit tests and production bundle
+        run: |
+          npm test
+          npm run build
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Real-browser acceptance
+        run: npm run test:browser
+      - name: Archive exact tested source
+        if: always()
+        run: git -C .. archive --format=tar.gz --output=react-preview/source-tested.tar.gz HEAD
+      - name: Export isolated preview and verification artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: orbity-react-preview-${{ github.sha }}
+          retention-days: 7
+          path: |
+            react-preview/build/
+            react-preview/source-tested.tar.gz
+            react-preview/package-lock.json
+            react-preview/test-results/
+            react-preview/playwright-report/
+# No pages/id-token write permission and no deploy job. Production stays intact.
