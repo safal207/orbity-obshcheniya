@@ -1,7 +1,8 @@
 # Read failure after a committed progress write (React preview)
 
 App.refresh() now returns whether it loaded a valid progress snapshot. The
-loaded flag is still set on either outcome. App.write() only returns UI success
+loaded flag is still set on either outcome. A successful refresh also updates
+the metric clock so a just-committed completion is not treated as future data. App.write() only returns UI success
 and clears the current error after a successful refresh; a failed read retains
 its existing localized storage alert and suppresses the caller's success state.
 The operation may already have committed. Nothing rolls it back or silently

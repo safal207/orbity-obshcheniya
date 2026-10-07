@@ -51,6 +51,7 @@ function App() {
     try {
       const next = store.read();
       setState((old) => JSON.stringify(old) === JSON.stringify(next) ? old : next);
+      setNow(Date.now());
       setError((old) => old === 'INVALID_STORED' || old === 'STORAGE_FAILED' ? null : old);
       return true;
     } catch (e) { setState(null); setError(e.code || 'STORAGE_FAILED'); return false; }
@@ -112,7 +113,7 @@ function App() {
       // A committed write and a readable UI snapshot are separate outcomes.
       // Preserve refresh's error; recovery must reread, not repeat the write.
       if (!refresh()) return false;
-      setError(null); setNow(Date.now()); return true;
+      setError(null); return true;
     }
     catch (e) { refresh(); setError(e.code || 'STORAGE_FAILED'); return false; }
     finally { pendingWrites.current--; setPending((n) => n - 1); }
