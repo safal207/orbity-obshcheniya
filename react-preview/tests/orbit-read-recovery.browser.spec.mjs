@@ -27,6 +27,8 @@ async function setup(page, context, lang, rejectWrite = false) {
     window.orbitRecoveryWrites = 0;
     window.orbitRecoveryReadFailures = 0;
     window.orbitRecoveryWriteAttempts = 0;
+    window.orbitRecoveryStorageEvents = 0;
+    addEventListener('storage', (event) => { if (event.key === key) window.orbitRecoveryStorageEvents++; });
     window.restoreOrbitRecoveryReads = () => { blocked = false; };
     Storage.prototype.setItem = function (k, value) {
       if (this === localStorage && k === key) {
@@ -139,10 +141,14 @@ for (const lang of ['ru', 'en']) {
     await checkOrbit(page, lang, 'listening');
     expect(await raw(page)).toBe(JSON.stringify(saved()));
     expect(await page.evaluate(() => window.orbitRecoveryWrites)).toBe(0);
-    await witness.locator('#unit').selectOption('needs');
-    await expect(witness.locator('#unit')).toHaveValue('needs');
+    // A successful storage-event refresh already clears STORAGE_FAILED.
+    // Use the recovery button while it exists, then observe the later real event.
     await again(page, lang).click();
     await expect(page.getByRole('alert')).toHaveCount(0);
+    await witness.locator('#unit').selectOption('needs');
+    await expect(witness.locator('#unit')).toHaveValue('needs');
+    await expect.poll(() => page.evaluate(() => window.orbitRecoveryStorageEvents)).toBeGreaterThan(0);
+    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
     await checkOrbit(page, lang, 'listening');
     await untouched(page, witness, JSON.stringify(saved('needs')), 0);
   });

@@ -120,7 +120,17 @@ function App() {
   }
   async function selectModule(id) {
     const intent = ++navigationIntent.current;
-    if (!await write(() => store.selectModule(id))) return;
+    let committed = false;
+    const readable = await write(async () => {
+      await store.selectModule(id);
+      committed = true;
+    });
+    if (!readable) {
+      // A committed choice still needs display recovery after a failed reread.
+      // A rejected write must not opt this tab into another tab's orbit changes.
+      if (committed) restoreSavedModuleOnPath.current = true;
+      return;
+    }
     if (intent !== navigationIntent.current) {
       restoreSavedModuleOnPath.current = true;
       return;
