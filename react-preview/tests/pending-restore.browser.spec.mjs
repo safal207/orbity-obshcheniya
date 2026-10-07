@@ -56,6 +56,7 @@ for (const lang of ['ru', 'en']) {
 
       const restoreButton = page.getByRole('button', { name: lang === 'ru' ? 'Восстановить из файла' : 'Restore from file', exact: true });
       const fileInput = page.locator('input[type=file]');
+      await expect(fileInput).toBeAttached();
       await page.evaluate(() => {
         const input = document.querySelector('input[type=file]');
         const original = input.click.bind(input);
