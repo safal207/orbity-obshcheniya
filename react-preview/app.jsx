@@ -52,8 +52,9 @@ function App() {
       const next = store.read();
       setState((old) => JSON.stringify(old) === JSON.stringify(next) ? old : next);
       setError((old) => old === 'INVALID_STORED' || old === 'STORAGE_FAILED' ? null : old);
-    } catch (e) { setState(null); setError(e.code || 'STORAGE_FAILED'); }
-    setLoaded(true);
+      return true;
+    } catch (e) { setState(null); setError(e.code || 'STORAGE_FAILED'); return false; }
+    finally { setLoaded(true); }
   }, []);
   useEffect(() => {
     refresh();
@@ -106,7 +107,13 @@ function App() {
     // The stable unload handler needs the live count, including before a render.
     pendingWrites.current++;
     setPending((n) => n + 1); setNotice('');
-    try { await action(); refresh(); setError(null); setNow(Date.now()); return true; }
+    try {
+      await action();
+      // A committed write and a readable UI snapshot are separate outcomes.
+      // Preserve refresh's error; recovery must reread, not repeat the write.
+      if (!refresh()) return false;
+      setError(null); setNow(Date.now()); return true;
+    }
     catch (e) { refresh(); setError(e.code || 'STORAGE_FAILED'); return false; }
     finally { pendingWrites.current--; setPending((n) => n - 1); }
   }
