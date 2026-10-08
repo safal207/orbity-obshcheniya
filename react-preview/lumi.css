@@ -46,3 +46,15 @@ progress::-moz-progress-bar{background:#7762c6}
 @media(max-width:370px){.hero{padding:20px}.hero h1{font-size:2.15rem}.hero .lumi-portrait{width:72px}.hero .lumi-hero{gap:14px}.hero .eyebrow{font-size:.57rem}.hero .lumi-copy p{font-size:.8rem}.lumi-copy p{font-size:.82rem}.lumi-name{font-size:.66rem}.feedback>.lumi-portrait,.alert>.lumi-portrait{width:64px;margin:0 0 12px 12px}}
 @media(prefers-reduced-motion:reduce){.lumi-portrait[data-lumi-mood]{animation:none;transition:none}}
 @media(forced-colors:active){.hero,.lumi-card{border:1px solid CanvasText;background:Canvas;color:CanvasText}.hero h1,.hero .eyebrow,.hero p,.lumi-name,.lumi-copy p{color:CanvasText}.lumi-portrait{outline:1px solid CanvasText}}
+
+/* The uploaded Lumi greeting retains its complete square frame. */
+.hero{grid-template-columns:minmax(0,1fr) 180px}
+.lumi-welcome{position:relative;flex:none;width:100%;max-width:180px;aspect-ratio:1;overflow:hidden;border:1px solid #b8a2e766;border-radius:22px;background:#161536;box-shadow:0 12px 28px #0f0b2533}
+.lumi-welcome-video{display:block;width:100%;height:100%;object-fit:contain}
+.lumi-welcome-toggle{position:absolute;right:8px;bottom:8px;display:grid;place-items:center;width:44px;height:44px;padding:0;border:1px solid #d4c5f7;border-radius:50%;background:#211e3deb;color:#fff;font-size:1.4rem;line-height:1}
+.lumi-welcome-toggle:hover{background:#493693}
+.lumi-welcome-toggle:focus-visible{outline:3px solid #fff;outline-offset:-5px}
+@media(max-width:1150px){.hero{grid-template-columns:minmax(0,1fr) 150px}}
+@media(max-width:700px){.hero{grid-template-columns:minmax(0,1fr)}.lumi-welcome{width:112px;border-radius:18px}.hero .lumi-hero{align-items:center}}
+@media(max-width:370px){.lumi-welcome{width:100px}.hero .lumi-hero{gap:12px}}
+@media(forced-colors:active){.lumi-welcome,.lumi-welcome-toggle{border:1px solid CanvasText}.lumi-welcome-toggle{background:Canvas;color:CanvasText}}

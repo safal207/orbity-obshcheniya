@@ -1,5 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import portraits from './lumi-portraits.webp';
+import welcomeVideo from './lumi-welcome.mp4';
+import welcomeWebm from './lumi-welcome.webm';
+import welcomePoster from './lumi-welcome-poster.jpg';
 
 const frames = { idle: 0, success: 1, support: 2 };
 
@@ -15,10 +18,71 @@ export function LumiPortrait({ mood = 'idle' }) {
   </span>;
 }
 
+/** A short, silent greeting. Motion preferences and controls never touch progress. */
+function LumiWelcome({ t, mood }) {
+  const videoRef = useRef(null);
+  const failedSources = useRef(0);
+  const [unavailable, setUnavailable] = useState(false);
+  const [playing, setPlaying] = useState(false);
+  const [reducedMotion, setReducedMotion] = useState(() => matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+  useEffect(() => {
+    const media = matchMedia('(prefers-reduced-motion: reduce)');
+    const onMotion = () => {
+      setReducedMotion(media.matches);
+      if (media.matches) videoRef.current?.pause();
+    };
+    const onVisibility = () => { if (document.hidden) videoRef.current?.pause(); };
+    media.addEventListener('change', onMotion);
+    document.addEventListener('visibilitychange', onVisibility);
+    const observer = new IntersectionObserver(([entry]) => {
+      if (!entry.isIntersecting) videoRef.current?.pause();
+    });
+    if (videoRef.current) observer.observe(videoRef.current);
+    return () => {
+      media.removeEventListener('change', onMotion);
+      document.removeEventListener('visibilitychange', onVisibility);
+      observer.disconnect();
+    };
+  }, [unavailable]);
+
+  async function toggle() {
+    const video = videoRef.current;
+    if (!video) return;
+    if (!video.paused) { video.pause(); return; }
+    if (video.ended) video.currentTime = 0;
+    try { await video.play(); }
+    catch { setPlaying(false); } // Autoplay restrictions leave the poster and play control available.
+  }
+
+  function sourceFailed() {
+    // A source error is not a video error; let the browser try the other codec first.
+    if (++failedSources.current >= 2) setUnavailable(true);
+  }
+
+  if (unavailable) return <LumiPortrait mood={mood}/>;
+  return <div className="lumi-welcome">
+    <video ref={videoRef} className="lumi-welcome-video" data-testid="lumi-welcome-video"
+      poster={welcomePoster} width={544} height={544}
+      muted playsInline autoPlay={!reducedMotion} preload={reducedMotion ? 'none' : 'auto'}
+      aria-hidden="true" onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)}
+      onEnded={() => setPlaying(false)} onError={(event) => {
+        if (event.target === event.currentTarget) setUnavailable(true);
+      }}>
+      <source src={welcomeWebm} type="video/webm" onError={sourceFailed}/>
+      <source src={welcomeVideo} type="video/mp4" onError={sourceFailed}/>
+    </video>
+    <button className="lumi-welcome-toggle" type="button" data-testid="lumi-welcome-toggle"
+      onClick={toggle} aria-label={playing ? t('Приостановить приветствие Луми', 'Pause Lumi greeting') : t('Включить приветствие Луми', 'Play Lumi greeting')}>
+      <span aria-hidden="true">{playing ? 'Ⅱ' : '▷'}</span>
+    </button>
+  </div>;
+}
+
 /** No storage, timers, XP, inferred emotions, or live-region duplication. */
 export function Lumi({ t, mood = 'idle', message, hero = false }) {
   return <div className={`lumi-card${hero ? ' lumi-hero' : ''}`} data-testid="lumi-companion">
-    <LumiPortrait mood={mood}/>
+    {hero ? <LumiWelcome t={t} mood={mood}/> : <LumiPortrait mood={mood}/>}
     <div className="lumi-copy">
       <span className="lumi-name">{t('Луми · ваш спутник', 'Lumi · your companion')}</span>
       <p>{message || t('Один маленький шаг — в вашем темпе.', 'One small step, at your own pace.')}</p>

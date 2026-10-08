@@ -35,6 +35,9 @@ for (const [entry, language] of [['index.html', 'ru'], ['en.html', 'en']]) {
 assert.equal(linkedAssets[0], linkedAssets[1], 'RU and EN use the exact same tested application');
 const assets = readdirSync(new URL('assets/', build));
 assert.ok(assets.some((file) => /^lumi-portraits-.*\.webp$/.test(file)), 'the public site contains Lumi artwork');
+assert.ok(assets.some((file) => /^lumi-welcome-.*\.mp4$/.test(file)), 'the public site contains the uploaded Lumi greeting');
+assert.ok(assets.some((file) => /^lumi-welcome-.*\.webm$/.test(file)), 'the greeting also supports browsers without H.264');
+assert.ok(assets.some((file) => /^lumi-welcome-poster-.*\.jpg$/.test(file)), 'the public site contains the still greeting for reduced motion');
 assert.ok(!assets.some((file) => /\.html$/i.test(file)), 'HTML entries are bundled at the site root, never copied as raw assets');
 assert.ok(readFileSync(new URL('orbity-og.png', build)).length > 20000, 'the old raster share card stays available for existing references');
 assert.ok(readFileSync(new URL('orbity-og-lumi-v2.png', build)).length > 20000, 'the public site contains the versioned Lumi share card');

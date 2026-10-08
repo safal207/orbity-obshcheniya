@@ -11,17 +11,31 @@ const serious = async (page) => (await new AxeBuilder({ page }).analyze()).viola
 const fits = async (page) => expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 
 for (const width of [320, 390, 768, 1280]) {
-  test(`Lumi path: RU/EN, loaded art, reduced motion and layout at ${width}px`, async ({ page }, info) => {
+  test(`Lumi path: RU/EN, loaded square poster, reduced motion and layout at ${width}px`, async ({ page }, info) => {
     await page.setViewportSize({ width, height: 900 });
     await page.emulateMedia({ reducedMotion: 'reduce' });
     const errors = []; page.on('pageerror', (e) => errors.push(e.message));
     await page.goto('/');
     const companion = page.locator('.hero [data-testid=lumi-companion]');
     await expect(companion).toContainText('Луми');
-    const portrait = companion.locator('[data-lumi-mood=idle]');
-    await expect(portrait).toHaveAttribute('aria-hidden', 'true');
-    await expect(portrait.locator('img')).toHaveAttribute('alt', '');
-    await expect.poll(() => portrait.locator('img').evaluate((im) => im.complete && im.naturalWidth === 576)).toBe(true);
+    const video = companion.getByTestId('lumi-welcome-video');
+    await expect(video).toBeVisible();
+    await expect(video).toHaveAttribute('aria-hidden', 'true');
+    await expect(video).toHaveAttribute('poster', /lumi-welcome-poster.*\.jpg$/);
+    await expect(video).toHaveAttribute('preload', 'none');
+    expect(await video.evaluate((media) => ({ paused: media.paused, autoplay: media.autoplay })))
+      .toEqual({ paused: true, autoplay: false });
+    const poster = await video.evaluate((media) => new Promise((resolve) => {
+      const image = new Image();
+      image.onload = () => resolve([image.naturalWidth, image.naturalHeight]);
+      image.onerror = () => resolve(null);
+      image.src = media.poster;
+    }));
+    expect(poster).toEqual([544, 544]);
+    const frame = await video.boundingBox();
+    expect(frame.width).toBeCloseTo(frame.height, 1);
+    await expect(video).toHaveCSS('object-fit', 'contain');
+    await expect(companion.getByTestId('lumi-welcome-toggle')).toHaveAccessibleName('Включить приветствие Луми');
     await expect(page.locator('#unit option')).toHaveCount(8);
     await expect(page.locator('.path-stop')).toHaveCount(4);
     const before = await raw(page);
@@ -31,6 +45,7 @@ for (const width of [320, 390, 768, 1280]) {
     await page.getByRole('button', { name: 'Switch to English' }).click();
     await expect(companion).toContainText('Lumi');
     await expect(companion).toContainText('at your own pace');
+    await expect(companion.getByTestId('lumi-welcome-toggle')).toHaveAccessibleName('Play Lumi greeting');
     expect(await raw(page)).toBe(before); // Rendering and localization are read-only.
     await fits(page);
     if ([320, 1280].includes(width)) expect(await serious(page)).toEqual([]);
@@ -42,6 +57,69 @@ for (const width of [320, 390, 768, 1280]) {
     expect(errors).toEqual([]);
   });
 }
+
+test('Lumi greeting autoplays silently once, can pause and replay, and never changes progress', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 1100 });
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.goto('/?lang=en');
+  const video = page.getByTestId('lumi-welcome-video');
+  const toggle = page.getByTestId('lumi-welcome-toggle');
+  const before = await raw(page);
+  await expect.poll(() => video.evaluate((media) => !media.paused && media.currentTime > 0)).toBe(true);
+  expect(await video.evaluate((media) => ({
+    width: media.videoWidth, height: media.videoHeight,
+    muted: media.muted, inline: media.playsInline, autoplay: media.autoplay, loop: media.loop,
+  }))).toEqual({ width: 544, height: 544, muted: true, inline: true, autoplay: true, loop: false });
+  await expect(toggle).toHaveAccessibleName('Pause Lumi greeting');
+
+  await toggle.click();
+  expect(await video.evaluate((media) => media.paused)).toBe(true);
+  await expect(toggle).toHaveAccessibleName('Play Lumi greeting');
+  const pausedTime = await video.evaluate((media) => media.currentTime);
+  // Observe real frames after the pause; a changed label alone is not sufficient.
+  await video.evaluate(() => new Promise((resolve) => {
+    let frames = 0;
+    const frame = () => ++frames === 12 ? resolve() : requestAnimationFrame(frame);
+    requestAnimationFrame(frame);
+  }));
+  expect(await video.evaluate((media) => media.currentTime)).toBe(pausedTime);
+
+  await toggle.click();
+  await expect.poll(() => video.evaluate((media) => !media.paused && media.currentTime > 0)).toBe(true);
+  await video.evaluate((media) => { media.currentTime = media.duration - 0.15; });
+  await expect.poll(() => video.evaluate((media) => media.ended && media.paused)).toBe(true);
+  await expect(toggle).toHaveAccessibleName('Play Lumi greeting');
+  await toggle.click();
+  await expect.poll(() => video.evaluate((media) => !media.paused && !media.ended && media.currentTime < 2)).toBe(true);
+  await toggle.click();
+  expect(await raw(page)).toBe(before);
+});
+
+test('Lumi reduced-motion greeting stays still until keyboard play and stops when motion preference changes', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 1100 });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto('/');
+  const video = page.getByTestId('lumi-welcome-video');
+  const toggle = page.getByTestId('lumi-welcome-toggle');
+  const before = await raw(page);
+  expect(await video.evaluate((media) => ({ paused: media.paused, currentTime: media.currentTime, autoplay: media.autoplay })))
+    .toEqual({ paused: true, currentTime: 0, autoplay: false });
+  await expect(toggle).toHaveAccessibleName('Включить приветствие Луми');
+  await toggle.focus();
+  await page.keyboard.press('Enter');
+  await expect.poll(() => video.evaluate((media) => !media.paused && media.currentTime > 0)).toBe(true);
+  await expect(toggle).toHaveAccessibleName('Приостановить приветствие Луми');
+  await page.keyboard.press('Enter');
+  await expect.poll(() => video.evaluate((media) => media.paused)).toBe(true);
+
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  if (await video.evaluate((media) => media.paused)) await toggle.click();
+  await expect.poll(() => video.evaluate((media) => !media.paused)).toBe(true);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await expect.poll(() => video.evaluate((media) => media.paused)).toBe(true);
+  await expect(toggle).toHaveAccessibleName('Включить приветствие Луми');
+  expect(await raw(page)).toBe(before);
+});
 
 for (const lang of ['ru', 'en']) {
   test(`Lumi lesson ${lang}: support on a wrong answer or failed save, joy only after retry persists`, async ({ page }, info) => {
@@ -128,8 +206,8 @@ test('Lumi guided joy waits for the real Web Lock and does not award lesson XP',
   await expect(page.getByTestId('xp')).toContainText('0 XP');
 });
 
-test('a missing portrait does not remove localized guidance or block a lesson', async ({ page }) => {
-  await page.route('**/*.webp', (route) => route.abort());
+test('missing greeting and portrait assets do not remove localized guidance or block a lesson', async ({ page }) => {
+  await page.route(/\.(webm|mp4|jpg|webp)(?:\?.*)?$/, (route) => route.abort());
   await page.goto('/');
   const companion = page.locator('.hero [data-testid=lumi-companion]');
   await expect(companion).toContainText('Один маленький шаг');
@@ -138,6 +216,25 @@ test('a missing portrait does not remove localized guidance or block a lesson', 
   await page.getByTestId('resume').click();
   await expect(page).toHaveURL(/#lesson\//);
   await expect(page.locator('#page-title')).toBeFocused();
+});
+
+test('a failed greeting falls back to the portrait and leaves lesson navigation available', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.route(/\.(webm|mp4)(?:\?.*)?$/, (route) => route.abort());
+  await page.goto('/?lang=en');
+  const companion = page.locator('.hero [data-testid=lumi-companion]');
+  await expect(companion.getByTestId('lumi-welcome-video')).toHaveCount(0);
+  await expect(companion.getByTestId('lumi-welcome-toggle')).toHaveCount(0);
+  await expect(companion.locator('[data-lumi-mood=idle]')).toBeVisible();
+  await expect.poll(() => companion.locator('img').evaluate((image) => image.complete && image.naturalWidth === 576)).toBe(true);
+  await expect(companion).toContainText('One small step');
+  const before = await raw(page);
+  await page.getByTestId('resume').click();
+  await expect(page).toHaveURL(/#lesson\//);
+  await expect(page.locator('#page-title')).toBeFocused();
+  const saved = JSON.parse(await raw(page));
+  const prior = before ? JSON.parse(before) : null;
+  expect(saved?.completed || {}).toEqual(prior?.completed || {});
 });
 
 test('current navigation has one semantic marker across learning and mission routes', async ({ page }) => {
