@@ -253,7 +253,7 @@ function App() {
     </aside>
     <div className="workspace">
       <header className="topbar"><span className="small-brand">{t('Орбиты общения', 'Conversation Orbits')}</span>
-        <div className="top-stats" aria-label={t('Прогресс', 'Progress')}><span className="xp" data-testid="xp">✦ {stats ? stats.xp : '—'} XP</span><span>{stats ? stats.count : '—'} / {course.lessons.length}</span></div>
+        <div className="top-stats" aria-label={stats ? t(`Прогресс: ${stats.xp} XP, ${stats.count} из ${course.lessons.length} уроков`, `Progress: ${stats.xp} XP, ${stats.count} of ${course.lessons.length} lessons`) : t('Прогресс загружается', 'Progress is loading')}><span className="xp" data-testid="xp">✦ {stats ? stats.xp : '—'} XP <span className="mobile-count" aria-hidden="true">· {stats ? stats.count : '—'}/{course.lessons.length}</span></span><span className="lesson-count">{stats ? stats.count : '—'} / {course.lessons.length}</span></div>
         <button className="language" onClick={() => setLang(lang === 'ru' ? 'en' : 'ru')} aria-label={t('Switch to English', 'Переключить на русский')}>{lang === 'ru' ? 'EN' : 'RU'}</button>
       </header>
       <main id="main-content" tabIndex={-1}>
