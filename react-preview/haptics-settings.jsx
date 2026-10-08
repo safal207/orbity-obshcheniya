@@ -46,9 +46,9 @@ export function HapticsSettings({ t }) {
         <span>{t('Вибрация при прохождении', 'Vibration during learning')}</span>
       </label>
       <p id="haptics-description">{t('Короткий отклик только после сохранённого шага. Проверка ниже не меняет уроки, заметки или XP.', 'A short pulse only after a saved step. The test below does not change lessons, notes or XP.')}</p>
-      <p className="haptics-preference" data-testid="haptics-preference">{preference.mode === 'auto'
+      {(preference.storage === 'ok' || preference.storage === 'session') && <p className="haptics-preference" data-testid="haptics-preference">{preference.mode === 'auto'
         ? t('Пока вы не выбрали вручную, учитывается уменьшение анимации. Переключатель задаёт вибрацию отдельно.', 'Until you choose manually, reduced motion is respected. The switch controls vibration separately.')
-        : t('Вибрация выбрана вручную, независимо от настройки анимации.', 'Vibration is explicitly set, independently of motion settings.')}</p>
+        : t('Вибрация выбрана вручную, независимо от настройки анимации.', 'Vibration is explicitly set, independently of motion settings.')}</p>}
       {preference.storage !== 'ok' && <p role="status" className="haptics-storage" data-testid="haptics-storage">{preference.storage === 'session'
         ? t('Не удалось подтвердить сохранение настройки. Сейчас выбор действует только в этой вкладке; после перезагрузки проверьте его снова.', 'The preference could not be confirmed as saved. Your choice currently applies only to this tab; check it again after reloading.')
         : t('Настройку не удалось прочитать. Выберите её вручную. Прогресс обучения не изменён.', 'The preference could not be read. Choose it manually. Learning progress has not changed.')}</p>}
