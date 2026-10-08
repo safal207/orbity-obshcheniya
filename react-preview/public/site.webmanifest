@@ -1,0 +1,17 @@
+{
+  "name": "Орбиты общения",
+  "short_name": "Орбиты",
+  "description": "Короткие практики бережного диалога с Луми.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f6f4fc",
+  "theme_color": "#5742b4",
+  "icons": [
+    {
+      "src": "./orbity-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

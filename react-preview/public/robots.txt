@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://safal207.github.io/orbity-obshcheniya/sitemap.xml
