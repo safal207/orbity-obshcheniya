@@ -6,10 +6,12 @@ export const GUIDED = Object.freeze({
   conflict: Object.freeze(['conflict-1', 'conflict-2', 'conflict-3']),
   needs: Object.freeze(['needs-1', 'needs-2', 'needs-3']),
 });
+const QUICK_HELP = new Set(['conflict', 'request', 'unheard', 'apology', 'money']);
 const fail = (code) => { throw Object.assign(new Error(code), { code }); };
 
 export function learningRoute(hash, lessons, missions = []) {
   const parts = hash.replace(/^#/, '').split('/');
+  if (parts[0] === 'now') return { view: 'now', id: null, scenarioId: QUICK_HELP.has(parts[1]) ? parts[1] : null };
   if (parts[0] === 'start') return { view: 'start', id: null };
   if (parts[0] === 'guided' && (parts.length === 1 || Object.hasOwn(GUIDED, parts[1]) || /^[0-2]$/.test(parts[1]))) {
     return { view: 'guided', id: null, topic: Object.hasOwn(GUIDED, parts[1]) ? parts[1] : null };

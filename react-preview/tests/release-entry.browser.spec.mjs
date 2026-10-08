@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 const KEY = 'orbity-dialoga-progress-v1';
 
-for (const route of ['lesson/map-1/1', 'practice/map-2', 'review', 'module/needs', 'mission/listen-ten', 'guided-done', 'about']) {
+for (const route of ['lesson/map-1/1', 'practice/map-2', 'review', 'module/needs', 'mission/listen-ten', 'guided-done', 'now/conflict', 'about']) {
   test(`English public entry preserves #${route} and language switching on reload`, async ({ page }) => {
     await page.goto(`/en.html#${route}`);
     await expect(page.locator('html')).toHaveAttribute('lang', 'en');
