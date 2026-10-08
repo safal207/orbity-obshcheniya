@@ -11,6 +11,7 @@ import { ResultDetails } from './result-details.jsx';
 import './style.css';
 import './lumi.css';
 import { Lumi, LumiPortrait, LumiTip } from './lumi.jsx';
+import { vibrateOnSavedProgress } from './haptics.mjs';
 
 const store = createProgressStore({ lessons: ru.lessons, missions: ru.missions, requireLessonStart: true });
 const accents = ['#b7c6ff', '#c9ee92', '#ffcf88', '#d8bdff', '#ffbab6', '#a9e6dd', '#f4bde7', '#cbdc9f'];
@@ -335,7 +336,11 @@ function MissionDetail({ mission, state, pending, t, write, go }) {
     document.getElementById('page-title')?.focus();
   }, [mission.id, current, complete]);
 
-  const setStep = (index, value) => write(() => store.setMissionStep(mission.id, index, value));
+  async function setStep(index, value) {
+    if (await write(() => store.setMissionStep(mission.id, index, value)) && value) {
+      vibrateOnSavedProgress(index === mission.steps.length - 1 ? 'milestone' : 'step');
+    }
+  }
 
   return <section className="lesson-screen" data-testid="mission-detail">
     <div className="lesson-top">
@@ -376,7 +381,10 @@ function Lesson({ lesson, mode, step, state, pending, t, write, notePanel, go })
     if (choice === null || feedback === 'done' || pending) return;
     if (!lesson.quiz.correct.includes(choice)) { setFeedback('retry'); return; }
     const storeMode = mode === 'practice' ? state?.completed[lesson.id] ? 'review' : 'practice' : 'lesson';
-    if (await write(() => store.answer(lesson.id, choice, storeMode))) setFeedback('done');
+    if (await write(() => store.answer(lesson.id, choice, storeMode))) {
+      setFeedback('done');
+      vibrateOnSavedProgress('milestone');
+    }
   }
   return <section className="lesson-screen"><div className="lesson-top"><button className="secondary" onClick={() => go('path')}>← {t('К маршруту', 'Back to path')}</button><span>{mode === 'practice' ? t('ПРАКТИКА', 'PRACTICE') : `${t('ШАГ', 'STEP')} ${step + 1}/3`}</span></div>
     <progress value={needsStart ? 0 : feedback === 'done' ? 3 : step + 1} max={3} aria-label={t('Шаг урока', 'Lesson step')}/>
