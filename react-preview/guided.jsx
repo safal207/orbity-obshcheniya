@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { GUIDED, answerGuided, nextLesson } from './navigation.mjs';
 import { Lumi, LumiPortrait } from './lumi.jsx';
+import { vibrateOnSavedProgress } from './haptics.mjs';
 
 export function TopicPicker({ state, pending, t, start }) {
   const topics = [
@@ -43,7 +44,10 @@ export function Guided({ topic, state, course, store, pending, t, write, notePan
     if (!lesson.quiz.correct.includes(choice)) { setFeedback('retry'); return; }
     setSaving(true);
     const ok = await write(() => answerGuided(store, course.lessons, topic, step, choice));
-    if (ok) setFeedback('done');
+    if (ok) {
+      setFeedback('done');
+      vibrateOnSavedProgress(step === ids.length - 1 ? 'milestone' : 'step');
+    }
     setSaving(false);
   }
   async function copy() {

@@ -178,3 +178,92 @@ test('Lumi route tips are contextual, dismissible, localized and read-only', asy
   await expect(page.getByTestId('lumi-route-tip')).toContainText('trace of practice');
   expect(await raw(page)).toBe(before);
 });
+
+test('haptics: wrong and rejected lesson answers stay silent; saved completion gives a gentle double tap', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.addInitScript(() => {
+    window.__vibrations = [];
+    Object.defineProperty(navigator, 'vibrate', { configurable: true, value(pattern) {
+      window.__vibrations.push(pattern);
+      return true;
+    } });
+  });
+  await page.goto('/#lesson/map-1');
+  await page.getByRole('button', { name: 'Попробуем' }).click();
+  await page.getByRole('button', { name: 'Проверить понимание' }).click();
+  const check = page.getByRole('button', { name: 'Проверить ответ', exact: true });
+  const before = await raw(page);
+
+  await page.locator('.choice').nth(0).click();
+  await check.click();
+  await expect(page.locator('.feedback.retry')).toBeVisible();
+  expect(await page.evaluate(() => window.__vibrations)).toEqual([]);
+  expect(await raw(page)).toBe(before);
+
+  await page.evaluate((key) => {
+    const original = Storage.prototype.setItem;
+    window.restoreHapticStorage = () => { Storage.prototype.setItem = original; };
+    Storage.prototype.setItem = function (k, value) {
+      if (this === localStorage && k === key) throw new DOMException('Synthetic haptic save failure', 'QuotaExceededError');
+      return original.call(this, k, value);
+    };
+  }, KEY);
+  await page.locator('.choice').nth(1).click();
+  await check.click();
+  await expect(page.getByRole('alert')).toBeVisible();
+  expect(await page.evaluate(() => window.__vibrations)).toEqual([]);
+  expect(await raw(page)).toBe(before);
+
+  await page.evaluate(() => window.restoreHapticStorage());
+  await check.click();
+  await expect(page.locator('.feedback.success')).toBeVisible();
+  expect(await page.evaluate(() => window.__vibrations)).toEqual([[28, 40, 36]]);
+  expect(JSON.parse(await raw(page)).completed['map-1']).toBeTruthy();
+
+  await page.reload();
+  expect(await page.evaluate(() => window.__vibrations)).toEqual([]);
+  await expect(page.getByTestId('xp')).toContainText('20 XP');
+  await fits(page);
+});
+
+test('haptics: guided questions respect reduced motion, then tap after committed steps with no XP', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.addInitScript(() => {
+    window.__vibrations = [];
+    Object.defineProperty(navigator, 'vibrate', { configurable: true, value(pattern) {
+      window.__vibrations.push(pattern);
+      return true;
+    } });
+  });
+  await page.goto('/#start');
+  await page.locator('[data-topic=needs]').click();
+
+  const check = page.getByRole('button', { name: 'Проверить ответ', exact: true });
+  const first = lessons.find((lesson) => lesson.id === 'needs-1');
+  await page.locator('.choice').nth(first.quiz.correct[0]).click();
+  await check.click();
+  await expect(page.locator('.feedback.success')).toBeVisible();
+  expect(await page.evaluate(() => window.__vibrations)).toEqual([]);
+  expect(JSON.parse(await raw(page)).guidedFlow.step).toBe(1);
+
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.getByRole('button', { name: 'Следующий вопрос', exact: true }).click();
+  const second = lessons.find((lesson) => lesson.id === 'needs-2');
+  await page.locator('.choice').nth(second.quiz.correct[0]).click();
+  await check.click();
+  await expect(page.locator('.feedback.success')).toBeVisible();
+  expect(await page.evaluate(() => window.__vibrations)).toEqual([18]);
+  expect(JSON.parse(await raw(page)).guidedFlow.step).toBe(2);
+
+  await page.getByRole('button', { name: 'Следующий вопрос', exact: true }).click();
+  const third = lessons.find((lesson) => lesson.id === 'needs-3');
+  await page.locator('.choice').nth(third.quiz.correct[0]).click();
+  await check.click();
+  await expect(page.locator('.feedback.success')).toBeVisible();
+  expect(await page.evaluate(() => window.__vibrations)).toEqual([18, [28, 40, 36]]);
+  expect(JSON.parse(await raw(page)).guidedFlow.step).toBe(3);
+  await expect(page.getByTestId('xp')).toContainText('0 XP');
+  await fits(page);
+});

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { reviewQueue, answerReview } from './review.mjs';
 import { ResultDetails } from './result-details.jsx';
 import { LumiPortrait } from './lumi.jsx';
+import { vibrateOnSavedProgress } from './haptics.mjs';
 
 export function Review({ state, course, store, pending, t, write, notePanel, go, onSync }) {
   const [queue, setQueue] = useState(() => reviewQueue(state, course.lessons));
@@ -27,7 +28,10 @@ export function Review({ state, course, store, pending, t, write, notePanel, go,
     if (!lesson || choice === null || feedback === 'done' || pending || saving || stale || !state) return;
     if (!lesson.quiz.correct.includes(choice)) { setFeedback('retry'); return; }
     setSaving(true);
-    if (await write(() => answerReview(store, lesson, choice))) setFeedback('done');
+    if (await write(() => answerReview(store, lesson, choice))) {
+      setFeedback('done');
+      vibrateOnSavedProgress(position === queue.length - 1 ? 'milestone' : 'step');
+    }
     setSaving(false);
   }
 
