@@ -1,5 +1,9 @@
 # Lumi: plush companion in the isolated React preview
 
+Historical implementation and artwork provenance. The companion is included
+in the public React release described in [REACT-RELEASE.md](REACT-RELEASE.md);
+the original release-gate list below records the preview-stage status.
+
 ## Scope
 
 Stacked on PR #3, feature head `97902ff640a2d133ea09eecf75f4c58ea19953ae`.

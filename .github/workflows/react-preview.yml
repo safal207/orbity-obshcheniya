@@ -1,17 +1,14 @@
 name: React preview acceptance
 on:
+  workflow_call:
+  workflow_dispatch:
   push:
     branches: [feat/react-orbit-path]
-  pull_request:
-    paths:
-      - 'react-preview/**'
-      - 'dist/course*.js'
-      - 'dist/progress-store.js'
-      - '.github/workflows/react-preview.yml'
 permissions:
   contents: read
 concurrency:
-  group: react-preview-${{ github.ref }}
+  # A standalone review run cannot cancel acceptance inside Pages publication.
+  group: react-preview-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 jobs:
   preview:
@@ -21,16 +18,17 @@ jobs:
       run:
         working-directory: react-preview
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
-      - name: Install pinned direct dependencies
-        run: npm install --no-fund --no-audit
+      - name: Install locked dependencies
+        run: npm ci --no-fund
       - name: Unit tests and production bundle
         run: |
           npm test
           npm run build
+          node scripts/verify-build.mjs
       - name: Install Chromium and Firefox
         run: npx playwright install --with-deps chromium firefox
       - name: Real-browser acceptance (Chromium)
@@ -41,12 +39,19 @@ jobs:
           PW_OUTPUT_DIR: test-results-firefox
           PW_HTML_DIR: playwright-report-firefox
         run: npx playwright test tests/guided-restart.browser.spec.mjs
+      - name: Export accepted React website
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: orbity-react-site-${{ github.sha }}
+          path: react-preview/build/
+          if-no-files-found: error
+          retention-days: 7
       - name: Archive exact tested source
         if: always()
         run: git -C .. archive --format=tar.gz --output=react-preview/source-tested.tar.gz HEAD
       - name: Export isolated preview and verification artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: orbity-react-preview-${{ github.sha }}
           retention-days: 7
@@ -58,4 +63,4 @@ jobs:
             react-preview/playwright-report/
             react-preview/test-results-firefox/
             react-preview/playwright-report-firefox/
-# No pages/id-token write permission and no deploy job. Production stays intact.
+# This workflow can only validate and export artifacts. Pages owns publication.

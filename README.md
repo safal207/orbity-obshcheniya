@@ -2,7 +2,7 @@
 
 An interactive communication practice site for people in relationships: 8 themes, 32 short lessons with answer feedback, 6 optional real-life exercises, review, and local progress. It helps visitors rehearse clearer questions, listening, requests, boundaries, and repair after conflict. It does not claim to measure or guarantee a change in a relationship.
 
-The main flow presents one decision at a time: choose a topic, try three short situations, then study bite-sized lessons. Introductory answers do not count as completed lessons; the lesson progress advances after its teaching step and correct answer. Other sections stay in a compact menu.
+The React interface pairs a lesson path with Lumi, our original plush companion. Continue a saved lesson or choose a topic and try three short situations, one question at a time. Introductory answers do not count as completed lessons; the lesson progress advances after its teaching step and correct answer. Review revisits up to four completed lessons without awarding duplicate XP.
 
 ## Try it in English
 
@@ -14,7 +14,9 @@ The language link keeps the current lesson or exercise open. Both languages use 
 
 The “Mars and Venus” image is a conversation prompt inspired by John Gray's books, not a rule about how women or men behave. Ask each person what support they prefer. This is an independent educational project with original exercises; it is not therapy or an official course based on those books. If a conversation involves threats, pressure, or fear, safety and trusted support come before a paired exercise.
 
-Run locally with `node server.mjs`, then open `http://127.0.0.1:5187/` or `/en.html`. Check the bilingual content and answer-key alignment with `node tests/locales.mjs`. GitHub Pages publishes `dist` from `main` after validation.
+For the public React interface, use Node 22.12+ and run `cd react-preview`, `npm ci`, `npm run build`, then `npm run preview -- --port 4173`. Open `http://127.0.0.1:4173/` or `/en.html`. GitHub Pages publishes the accepted React build from `main` after legacy safety checks, React unit tests, Chromium acceptance and Firefox guided-resume acceptance. The exact browser-tested artifact is deployed without rebuilding. See [release verification](docs/REACT-RELEASE.md).
+
+The previous interface remains in `dist` for regression checks and rollback; `node server.mjs` previews that source at `http://127.0.0.1:5187/`.
 
 ## Sources and inspiration
 
@@ -29,13 +31,13 @@ Run locally with `node server.mjs`, then open `http://127.0.0.1:5187/` or `/en.h
 
 Интерактивный тренажёр навыков общения для женщин и мужчин: 8 этапов, 32 коротких урока и проверки, 6 заданий для жизни, повторение и перенос прогресса.
 
-Главный сценарий показывает один выбор за раз: тема → три вводные ситуации → короткие уроки с одним вопросом и разбором. Вводные ответы помогают выбрать маршрут и не засчитываются как пройденные уроки. Остальные разделы находятся в меню «Разделы».
+Новый React-интерфейс показывает маршрут коротких уроков со спутником Луми. Можно продолжить с сохранённого места или выбрать тему: три вводные ситуации → короткие уроки с одним вопросом и разбором. Вводные ответы помогают выбрать маршрут и не засчитываются как пройденные уроки. Повторение возвращает до четырёх завершённых уроков и не начисляет повторный опыт.
 
 ## Открыть сайт
 
 [Орбиты общения на GitHub Pages](https://safal207.github.io/orbity-obshcheniya/)
 
-Страница публикуется из папки `dist` после обновления ветки `main`. Для локального просмотра: `node server.mjs`, затем `http://127.0.0.1:5187/`.
+Pages публикует проверенную React-сборку после обновления ветки `main`. Старые русские и английские ссылки с адресом урока продолжают работать. Для локального просмотра нужны Node 22.12+, затем `cd react-preview`, `npm ci`, `npm run build`, `npm run preview -- --port 4173` и `http://127.0.0.1:4173/` или `/en.html`. Подробности проверок и ограничения — в [описании выпуска](docs/REACT-RELEASE.md).
 
 Вход в аккаунт не нужен. Прогресс и заметки остаются в `localStorage` этого браузера. В разделе «Прогресс» их можно скачать в JSON и загрузить на другом устройстве. Файл может содержать личные заметки.
 
