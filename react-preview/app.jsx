@@ -10,7 +10,7 @@ import { Review } from './review.jsx';
 import { ResultDetails } from './result-details.jsx';
 import './style.css';
 import './lumi.css';
-import { Lumi, LumiPortrait } from './lumi.jsx';
+import { Lumi, LumiPortrait, LumiTip } from './lumi.jsx';
 
 const store = createProgressStore({ lessons: ru.lessons, missions: ru.missions, requireLessonStart: true });
 const accents = ['#b7c6ff', '#c9ee92', '#ffcf88', '#d8bdff', '#ffbab6', '#a9e6dd', '#f4bde7', '#cbdc9f'];
@@ -26,6 +26,16 @@ const errorCopy = {
   IMPORT_CONFLICT: ['Данные изменились после подтверждения. Импорт отменён — начните его заново.', 'Data changed after the confirmation snapshot. Import was cancelled; start again.'],
   FLOW_CONFLICT: ['Тема или данные изменились в другой вкладке. Ответ не сохранён. Продолжите с актуального вопроса или выберите тему снова.', 'The topic or data changed in another tab. Your answer was not saved. Continue from the current question or choose a topic again.'],
   UNSAVED: ['Сначала сохраните или скопируйте несохранённые заметки. Импорт пока заблокирован.', 'Save or copy unsaved notes first. Import is blocked while drafts exist.'],
+};
+const routeTipCopy = {
+  start: ['Выберите ситуацию, которая ближе сейчас. Остальное подождёт.', 'Choose the situation that feels closest right now. The rest can wait.'],
+  guided: ['Не ищите идеальный ответ. Отмечайте то, что действительно замечаете.', 'Do not look for the perfect answer. Notice what is actually true for you.'],
+  lesson: ['Один урок — одна идея. Возьмите ту, которую реально попробуете в разговоре.', 'One lesson, one idea. Take the one you can actually try in a conversation.'],
+  practice: ['Это не экзамен. Достаточно вспомнить одну полезную мысль.', 'This is not a test. Remembering one useful idea is enough.'],
+  review: ['Повтор — не проверка вас. Просто освежите то, что хочется сохранить.', 'Review is not a score for you. Just refresh what you want to keep.'],
+  missions: ['Лучше один маленький шаг в жизни, чем три идеальных в голове.', 'One small real-life step beats three perfect steps in your head.'],
+  mission: ['Пусть шаг будет добровольным, безопасным и выполнимым сегодня.', 'Keep the step voluntary, safe, and doable today.'],
+  progress: ['Смотрите на прогресс как на след практики, а не как на оценку отношений.', 'Treat progress as a trace of practice, not a score for your relationship.'],
 };
 function App() {
   const [lang, setLang] = useState(() => {
@@ -50,6 +60,9 @@ function App() {
   const restoredModule = useRef(false);
   const restoreSavedModuleOnPath = useRef(false);
   const navigationIntent = useRef(0);
+  const [routeTip, setRouteTip] = useState(null);
+  const routeTipTimer = useRef(null);
+  const seenRouteTips = useRef(new Set());
   const hasDrafts = () => drafts.current.size > 0;
   const explain = (code) => (errorCopy[code] || errorCopy.STORAGE_FAILED)[lang === 'ru' ? 0 : 1];
   const refresh = useCallback(() => {
@@ -99,6 +112,14 @@ function App() {
     if (selected) setModuleId(selected.moduleId);
     else if (route.moduleId && ru.modules.some((m) => m.id === route.moduleId)) setModuleId(route.moduleId);
   }, [route.view, route.id, route.moduleId, route.missionId, loaded]);
+  useEffect(() => {
+    clearTimeout(routeTipTimer.current);
+    setRouteTip(null);
+    if (!loaded || !routeTipCopy[route.view] || seenRouteTips.current.has(route.view)) return undefined;
+    seenRouteTips.current.add(route.view);
+    routeTipTimer.current = setTimeout(() => setRouteTip(route.view), 180);
+    return () => clearTimeout(routeTipTimer.current);
+  }, [route.view, loaded]);
   useEffect(() => {
     if (!loaded || !state) return;
     const unlinkedPath = route.view === 'path' && !route.id && !route.moduleId;
@@ -259,6 +280,7 @@ function App() {
       <main id="main-content" tabIndex={-1}>
         {error && <div className="alert" role="alert"><LumiPortrait mood="support"/><p>{explain(error)}</p><button className="secondary" onClick={refresh}>{t('Проверить снова', 'Check again')}</button><button className="secondary" onClick={() => go('progress')}>{t('Резервная копия', 'Backup')}</button></div>}
         {notice && <p className="notice" role="status">{notice}</p>}
+        {routeTip && <LumiTip t={t} message={t(...routeTipCopy[routeTip])} onClose={() => setRouteTip(null)}/>}
         {!loaded ? <p role="status">{t('Читаем ваш прогресс…', 'Reading your progress…')}</p> : <>
           {route.view === 'path' && <div className="dashboard">
             <div className="journey"><section className="hero"><div><span className="eyebrow">{t('МАЛЕНЬКИЙ ШАГ. БОЛЬШЕ ПОНИМАНИЯ.', 'SMALL STEPS. MORE UNDERSTANDING.')}</span>
