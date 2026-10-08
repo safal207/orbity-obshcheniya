@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 const sprite = readFileSync(new URL('../lumi-portraits.webp', import.meta.url)).toString('base64');
 const portrait = `data:image/webp;base64,${sprite}`;
-const out = (name) => fileURLToPath(new URL(`../build/${name}`, import.meta.url));
+const out = (name) => fileURLToPath(new URL(`../public/${name}`, import.meta.url));
 
 const browser = await chromium.launch();
 try {
