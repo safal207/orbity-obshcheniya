@@ -28,9 +28,12 @@ jobs:
         run: |
           npm test
           npm run build
-          node scripts/verify-build.mjs
       - name: Install Chromium and Firefox
         run: npx playwright install --with-deps chromium firefox
+      - name: Render social preview assets
+        run: node scripts/render-social-assets.mjs
+      - name: Verify production bundle
+        run: node scripts/verify-build.mjs
       - name: Real-browser acceptance (Chromium)
         run: npm run test:browser
       - name: Guided-resume acceptance (Firefox)
