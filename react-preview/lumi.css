@@ -32,12 +32,17 @@ progress::-moz-progress-bar{background:#7762c6}
 .hero .lumi-portrait{width:min(156px,100%);box-shadow:0 0 0 3px #b19ade88,0 0 0 11px #b29bde16,0 12px 28px #0f0b2533}
 .hero .lumi-name{color:#e3d4ff;font-size:.64rem}
 .hero .lumi-copy p{color:#f1eaff;font-size:.84rem}
+.lumi-tip{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:12px;padding:12px 14px;margin:0 0 20px;border:1px solid #ddd4f1;border-radius:18px;background:#fbf9ff;box-shadow:0 8px 22px #38285f0d}
+.lumi-tip .lumi-portrait{width:52px;box-shadow:0 0 0 2px #c9b9ef,0 4px 12px #29204218}
+.lumi-tip-copy{min-width:0}.lumi-tip-copy .lumi-name{margin-bottom:3px}.lumi-tip-copy p{margin:0;color:#514a61;font-size:.82rem;line-height:1.48}
+.lumi-tip-close{align-self:start;display:grid;place-items:center;width:38px;height:38px;padding:0;border:0;border-radius:50%;background:transparent;color:#665b79;font-size:1.45rem;line-height:1}
+.lumi-tip-close:hover{background:#eee8f8}
 .feedback,.alert{display:flow-root}
 .feedback>.lumi-portrait,.alert>.lumi-portrait{float:right;width:88px;margin:0 0 16px 18px}
 .lumi-portrait[data-lumi-mood="success"]{animation:lumi-reward .55s ease-out both}
 @keyframes lumi-reward{0%{transform:scale(.92) rotate(-5deg)}55%{transform:scale(1.04) rotate(3deg)}100%{transform:scale(1) rotate(0)}}
 @media(max-width:1150px){.hero{grid-template-columns:minmax(0,1fr) 130px;padding:22px;gap:16px}.hero h1{font-size:2.4rem}.hero .lumi-portrait{width:min(122px,100%)}}
-@media(max-width:700px){.hero{grid-template-columns:minmax(0,1fr);padding:20px;margin-bottom:18px;gap:16px}.hero h1{font-size:2.4rem;margin-bottom:16px}.hero .button-row{margin-top:18px}.hero [data-testid="resume-label"]{margin-top:13px}.hero .lumi-hero{flex-direction:row;text-align:left;gap:14px}.hero .lumi-portrait{width:72px}.hero .lumi-copy p{font-size:.83rem}.hero .eyebrow{font-size:.59rem}.hero .primary,.hero .secondary{font-size:.85rem}.lumi-card{gap:14px;padding:16px}.lumi-card .lumi-portrait{width:76px}}
+@media(max-width:700px){.lumi-tip{margin-bottom:14px;padding:10px 11px;gap:10px;border-radius:16px}.lumi-tip .lumi-portrait{width:46px}.lumi-tip-copy p{font-size:.78rem}.lumi-tip-close{width:36px;height:36px}.hero{grid-template-columns:minmax(0,1fr);padding:20px;margin-bottom:18px;gap:16px}.hero h1{font-size:2.4rem;margin-bottom:16px}.hero .button-row{margin-top:18px}.hero [data-testid="resume-label"]{margin-top:13px}.hero .lumi-hero{flex-direction:row;text-align:left;gap:14px}.hero .lumi-portrait{width:72px}.hero .lumi-copy p{font-size:.83rem}.hero .eyebrow{font-size:.59rem}.hero .primary,.hero .secondary{font-size:.85rem}.lumi-card{gap:14px;padding:16px}.lumi-card .lumi-portrait{width:76px}}
 @media(max-width:370px){.hero{padding:20px}.hero h1{font-size:2.15rem}.hero .lumi-portrait{width:72px}.hero .lumi-hero{gap:14px}.hero .eyebrow{font-size:.57rem}.hero .lumi-copy p{font-size:.8rem}.lumi-copy p{font-size:.82rem}.lumi-name{font-size:.66rem}.feedback>.lumi-portrait,.alert>.lumi-portrait{width:64px;margin:0 0 12px 12px}}
 @media(prefers-reduced-motion:reduce){.lumi-portrait[data-lumi-mood]{animation:none;transition:none}}
 @media(forced-colors:active){.hero,.lumi-card{border:1px solid CanvasText;background:Canvas;color:CanvasText}.hero h1,.hero .eyebrow,.hero p,.lumi-name,.lumi-copy p{color:CanvasText}.lumi-portrait{outline:1px solid CanvasText}}
