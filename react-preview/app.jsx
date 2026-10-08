@@ -112,7 +112,7 @@ function App() {
     const selected = ru.lessons.find((l) => l.id === route.id);
     if (selected) setModuleId(selected.moduleId);
     else if (route.moduleId && ru.modules.some((m) => m.id === route.moduleId)) setModuleId(route.moduleId);
-  }, [route.view, route.id, route.moduleId, route.missionId, loaded]);
+  }, [route.view, route.id, route.moduleId, route.missionId, route.scenarioId, loaded]);
   useEffect(() => {
     clearTimeout(routeTipTimer.current);
     setRouteTip(null);
@@ -289,7 +289,7 @@ function App() {
               <p>{t('Учимся слышать, говорить и договариваться — по одному разговору.', 'Practice listening, speaking and finding common ground. One conversation at a time.')}</p>
               <div className="button-row"><button className="primary" data-testid="resume" disabled={!resume || !!pending} onClick={() => go(resume)}>{state?.guidedFlow ? t('Продолжить знакомство', 'Continue the introduction') : t('Продолжить путь', 'Continue your journey')} <span aria-hidden="true">→</span></button>
                 <button className="secondary help-now-button" data-testid="help-now" onClick={() => go('now')}>✦ {t('Помоги мне сейчас', 'Help me now')}</button>
-                <button className="secondary" onClick={() => go('start')}>{t('Выбрать тему', 'Choose a topic')}</button></div>
+                <button className="secondary" onClick={() => go('start')}>{t('Выбрать ситуацию', 'Choose a situation')}</button></div>
               {state && <p className="muted" data-testid="resume-label">{state.guidedFlow ? state.guidedFlow.step < 3 ? `${t('Сохранён вопрос', 'Saved question')} ${state.guidedFlow.step + 1}/3` : t('Три вопроса готовы — откройте результат.', 'Three questions are ready — open the result.') : savedNext ? `${t('Следующий урок', 'Next lesson')}: ${savedNext.title}` : t('Все уроки пройдены.', 'All lessons completed.')}</p>}
             </div><Lumi t={t} hero mood={error ? 'support' : 'idle'} message={error ? t('Сначала разберёмся с сообщением выше.', 'Let’s address the message above first.') : undefined}/></section>
               <div className="unit-picker"><label htmlFor="unit">{t('Ваша орбита', 'Your orbit')}</label><select id="unit" value={module.id} disabled={!state || !!pending} aria-busy={!!pending} onChange={(e) => selectModule(e.target.value)}>{course.modules.map((m, i) => <option key={m.id} value={m.id}>{String(i + 1).padStart(2, '0')} · {m.title}</option>)}</select></div>
