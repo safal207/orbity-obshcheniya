@@ -37,7 +37,9 @@ try {
     <div class="avatar"><img src="${portrait}" alt=""></div>
     <div class="caption">Луми · ваш спутник</div>
   </main></body></html>`, { waitUntil: 'load' });
+  // Keep the original file available for old caches and publish a versioned URL for fresh previews.
   await page.screenshot({ path: out('orbity-og.png') });
+  await page.screenshot({ path: out('orbity-og-lumi-v2.png') });
 
   await page.setViewportSize({ width: 512, height: 512 });
   await page.setContent(`<!doctype html><html><head><meta charset="utf-8"><style>
@@ -52,4 +54,4 @@ try {
   await browser.close();
 }
 
-console.log('Rendered orbity-og.png (1200x630) and orbity-icon.png (512x512).');
+console.log('Rendered orbity-og.png, orbity-og-lumi-v2.png (1200x630) and orbity-icon.png (512x512).');
