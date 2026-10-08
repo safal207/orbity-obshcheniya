@@ -25,3 +25,16 @@ export function Lumi({ t, mood = 'idle', message, hero = false }) {
     </div>
   </div>;
 }
+
+/** Lightweight route hint: visual only, dismissible, and never reads or writes progress. */
+export function LumiTip({ t, message, onClose }) {
+  return <aside className="lumi-tip" data-testid="lumi-route-tip" aria-label={t('Совет Луми', 'Lumi tip')}>
+    <LumiPortrait mood="support"/>
+    <div className="lumi-tip-copy">
+      <span className="lumi-name">{t('Луми рядом', 'Lumi is here')}</span>
+      <p>{message}</p>
+    </div>
+    <button className="lumi-tip-close" type="button" onClick={onClose}
+      aria-label={t('Скрыть совет Луми', 'Dismiss Lumi tip')}>×</button>
+  </aside>;
+}
