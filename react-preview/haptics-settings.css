@@ -1,0 +1,12 @@
+/* Compact, native disclosure: reachable on every route without changing the lesson. */
+.haptics-settings{margin:0 0 16px;border:1px solid var(--line);border-radius:16px;background:#fff;color:var(--ink);min-width:0}
+.haptics-settings>summary{cursor:pointer;padding:12px 16px;min-height:44px;font-weight:700;overflow-wrap:anywhere}
+.haptics-controls{padding:0 16px 16px;min-width:0}
+.haptics-toggle{display:flex;align-items:center;gap:12px;min-height:44px;cursor:pointer;font-weight:700}
+.haptics-toggle input{flex:0 0 auto;width:22px;height:22px;margin:0;accent-color:#5742b4}
+.haptics-controls p{font-size:.84rem;line-height:1.6;overflow-wrap:anywhere}
+.haptics-preference,.haptics-help{color:var(--muted)}
+.haptics-controls button{min-height:44px;max-width:100%;white-space:normal}
+.haptics-result:empty{margin:0}
+.haptics-result:not(:empty),.haptics-storage{border-inline-start:3px solid var(--line);padding-inline-start:12px}
+@media(forced-colors:active){.haptics-settings{background:Canvas;color:CanvasText;border-color:CanvasText}.haptics-result:not(:empty),.haptics-storage{border-color:CanvasText}}
