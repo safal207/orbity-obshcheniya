@@ -10,6 +10,7 @@ async function open(page, lang, state) {
   await page.goto(`/?lang=${lang}`);
   await page.evaluate(({ key, state }) => localStorage.setItem(key, JSON.stringify(state)), { key: KEY, state });
   await page.goto(`/?lang=${lang}#review`);
+  await page.reload();
 }
 async function answer(page, lesson, lang) {
   await page.locator('.choice').nth(lesson.quiz.correct[0]).click();
