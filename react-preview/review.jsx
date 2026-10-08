@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { reviewQueue, answerReview } from './review.mjs';
 import { ResultDetails } from './result-details.jsx';
-import { LumiPortrait } from './lumi.jsx';
+import { LumiPortrait, LumiAnimation } from './lumi.jsx';
 import { vibrateOnSavedProgress } from './haptics.mjs';
 
 export function Review({ state, course, store, pending, t, write, notePanel, go, onSync }) {
@@ -54,7 +54,7 @@ export function Review({ state, course, store, pending, t, write, notePanel, go,
     <progress value={queue.length} max={queue.length} aria-label={t('Вопросы повторения', 'Review questions')}/>
     <article className="lesson-card"><span className="eyebrow">{t('ПОВТОРЕНИЕ ЗАВЕРШЕНО', 'REVIEW COMPLETE')}</span>
       <h1 id="page-title" tabIndex={-1}>{t('Вы освежили навыки.', 'You refreshed your skills.')}</h1>
-      <LumiPortrait mood="success"/>
+      <LumiAnimation t={t} mood="success"/>
       <p className="lead">{t('Вернитесь к ним в следующем разговоре.', 'Bring them into your next conversation.')}</p>
       <p>{t('Вопросов пройдено', 'Questions completed')}: {queue.length}. {t('Повторение не добавляет XP.', 'Review does not add XP.')}</p>
       <button className="primary" onClick={() => go('path')}>{t('К следующему шагу', 'Next step')} →</button>
@@ -66,7 +66,7 @@ export function Review({ state, course, store, pending, t, write, notePanel, go,
     <article className="lesson-card"><span className="eyebrow">{lesson.title}</span><h1 id="page-title" tabIndex={-1}>{lesson.quiz.prompt}</h1>
       <div className="choices" role="group" aria-label={t('Варианты ответа', 'Answer choices')}>{lesson.quiz.choices.map((text, index) => <button key={index} className={`choice ${choice === index ? 'selected' : ''}`} aria-pressed={choice === index} disabled={!!pending || saving || feedback === 'done'} onClick={() => { setChoice(index); setFeedback(null); }}><span className="choice-number" aria-hidden="true">{index + 1}</span>{text}</button>)}</div>
       {feedback === 'retry' && <div className="feedback retry" role="status"><LumiPortrait mood="support"/><strong>{t('Попробуем другой ответ.', 'Let’s try another answer.')}</strong><p>{lesson.principle}</p></div>}
-      {feedback === 'done' ? <div className="feedback success" role="status"><LumiPortrait mood="success"/><h2>{t('Повторение сохранено!', 'Review saved!')}</h2><p>{lesson.quiz.explanation}</p>
+      {feedback === 'done' ? <div className="feedback success" role="status"><LumiAnimation t={t} mood="success"/><h2>{t('Повторение сохранено!', 'Review saved!')}</h2><p>{lesson.quiz.explanation}</p>
         <ResultDetails key={lesson.id} lesson={lesson} t={t} notePanel={notePanel}/>
         <p className="muted">{t('Следующее повторение — через три дня. XP не изменились.', 'Next review is in three days. XP is unchanged.')}</p>
         <button className="primary" disabled={!!pending || saving} onClick={next}>{position + 1 < queue.length ? t('Следующий вопрос', 'Next question') : t('Посмотреть результат', 'See the result')} →</button>

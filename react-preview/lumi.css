@@ -58,3 +58,10 @@ progress::-moz-progress-bar{background:#7762c6}
 @media(max-width:700px){.hero{grid-template-columns:minmax(0,1fr)}.lumi-welcome{width:112px;border-radius:18px}.hero .lumi-hero{align-items:center}}
 @media(max-width:370px){.lumi-welcome{width:100px}.hero .lumi-hero{gap:12px}}
 @media(forced-colors:active){.lumi-welcome,.lumi-welcome-toggle{border:1px solid CanvasText}.lumi-welcome-toggle{background:Canvas;color:CanvasText}}
+
+/* The same Lumi clip celebrates a saved result and accompanies navigation. */
+.feedback>.lumi-welcome{float:right;width:104px;max-width:104px;margin:0 0 16px 18px;border-color:#a9b889;box-shadow:0 6px 16px #29204218}
+.lesson-card>.lumi-welcome{width:132px;margin:18px 0}
+.lumi-tip .lumi-welcome{width:76px;max-width:76px;border-radius:16px;box-shadow:0 4px 12px #29204218}
+.lumi-tip .lumi-welcome-toggle{right:3px;bottom:3px}
+@media(max-width:370px){.feedback>.lumi-welcome{float:none;width:104px;margin:0 0 16px}.lumi-tip .lumi-welcome{width:72px}.lumi-tip{gap:8px}}

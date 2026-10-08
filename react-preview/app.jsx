@@ -11,7 +11,7 @@ import { ResultDetails } from './result-details.jsx';
 import { QuickHelp } from './quick-help.jsx';
 import './style.css';
 import './lumi.css';
-import { Lumi, LumiPortrait, LumiTip } from './lumi.jsx';
+import { Lumi, LumiPortrait, LumiAnimation, LumiTip } from './lumi.jsx';
 import { vibrateOnSavedProgress } from './haptics.mjs';
 
 const store = createProgressStore({ lessons: ru.lessons, missions: ru.missions, requireLessonStart: true });
@@ -30,6 +30,9 @@ const errorCopy = {
   UNSAVED: ['Сначала сохраните или скопируйте несохранённые заметки. Импорт пока заблокирован.', 'Save or copy unsaved notes first. Import is blocked while drafts exist.'],
 };
 const routeTipCopy = {
+  path: ['Вернитесь к одному маленькому шагу. Можно двигаться в своём темпе.', 'Come back to one small step. You can go at your own pace.'],
+  now: ['Сначала выберите, что происходит сейчас. Одной спокойной фразы уже достаточно для начала.', 'Start with what is happening now. One calm sentence is enough to begin.'],
+  about: ['Полезную мысль можно проверить в одном бережном разговоре.', 'Try one useful idea in a gentle conversation.'],
   start: ['Выберите ситуацию, которая ближе сейчас. Остальное подождёт.', 'Choose the situation that feels closest right now. The rest can wait.'],
   guided: ['Не ищите идеальный ответ. Отмечайте то, что действительно замечаете.', 'Do not look for the perfect answer. Notice what is actually true for you.'],
   lesson: ['Один урок — одна идея. Возьмите ту, которую реально попробуете в разговоре.', 'One lesson, one idea. Take the one you can actually try in a conversation.'],
@@ -64,7 +67,7 @@ function App() {
   const navigationIntent = useRef(0);
   const [routeTip, setRouteTip] = useState(null);
   const routeTipTimer = useRef(null);
-  const seenRouteTips = useRef(new Set());
+  const lastTipRoute = useRef(null);
   const hasDrafts = () => drafts.current.size > 0;
   const explain = (code) => (errorCopy[code] || errorCopy.STORAGE_FAILED)[lang === 'ru' ? 0 : 1];
   const refresh = useCallback(() => {
@@ -117,11 +120,15 @@ function App() {
   useEffect(() => {
     clearTimeout(routeTipTimer.current);
     setRouteTip(null);
-    if (!loaded || !routeTipCopy[route.view] || seenRouteTips.current.has(route.view)) return undefined;
-    seenRouteTips.current.add(route.view);
+    if (!loaded) return undefined;
+    const routeKey = JSON.stringify([route.view, route.id, route.topic, route.moduleId, route.missionId, route.scenarioId]);
+    const previous = lastTipRoute.current;
+    lastTipRoute.current = routeKey;
+    // The opening screen already has Lumi. Each later destination gets its own greeting.
+    if (previous === null || previous === routeKey || !routeTipCopy[route.view]) return undefined;
     routeTipTimer.current = setTimeout(() => setRouteTip(route.view), 180);
     return () => clearTimeout(routeTipTimer.current);
-  }, [route.view, loaded]);
+  }, [route.view, route.id, route.topic, route.moduleId, route.missionId, route.scenarioId, loaded]);
   useEffect(() => {
     if (!loaded || !state) return;
     const unlinkedPath = route.view === 'path' && !route.id && !route.moduleId;
@@ -282,7 +289,7 @@ function App() {
       <main id="main-content" tabIndex={-1}>
         {error && <div className="alert" role="alert"><LumiPortrait mood="support"/><p>{explain(error)}</p><button className="secondary" onClick={refresh}>{t('Проверить снова', 'Check again')}</button><button className="secondary" onClick={() => go('progress')}>{t('Резервная копия', 'Backup')}</button></div>}
         {notice && <p className="notice" role="status">{notice}</p>}
-        {routeTip && <LumiTip t={t} message={t(...routeTipCopy[routeTip])} onClose={() => setRouteTip(null)}/>}
+        {routeTip && <LumiTip key={JSON.stringify([route.view, route.id, route.topic, route.moduleId, route.missionId, route.scenarioId])} t={t} message={t(...routeTipCopy[routeTip])} onClose={() => setRouteTip(null)}/>}
         {!loaded ? <p role="status">{t('Читаем ваш прогресс…', 'Reading your progress…')}</p> : <>
           {route.view === 'path' && <div className="dashboard">
             <div className="journey"><section className="hero"><div><span className="eyebrow">{t('МАЛЕНЬКИЙ ШАГ. БОЛЬШЕ ПОНИМАНИЯ.', 'SMALL STEPS. MORE UNDERSTANDING.')}</span>
@@ -356,7 +363,7 @@ function MissionDetail({ mission, state, pending, t, write, go }) {
       <h1 id="page-title" tabIndex={-1}>{mission.title}</h1>
       <p className="lead">{mission.description}</p>
       {complete ? <div className="feedback success" role="status">
-        <LumiPortrait mood="success"/>
+        <LumiAnimation t={t} mood="success"/>
         <h2>{t('Все три шага отмечены.', 'All three steps are checked.')}</h2>
         <p>{t('Это ваша запись о практике, а не оценка отношений. При желании можно вернуться к последнему шагу.', 'This is your practice record, not a relationship score. You can return to the last step if you want.')}</p>
         <div className="button-row">
@@ -400,7 +407,7 @@ function Lesson({ lesson, mode, step, state, pending, t, write, notePanel, go })
       </section>}
       {step === 2 && !needsStart && <><h2 id="quiz-prompt">{lesson.quiz.prompt}</h2><div className="choices" role="group" aria-labelledby="quiz-prompt">{lesson.quiz.choices.map((text, i) => <button key={i} className={`choice ${choice === i ? 'selected' : ''}`} aria-pressed={choice === i} disabled={!!pending || feedback === 'done'} onClick={() => { setChoice(i); setFeedback(null); }}><span className="choice-number" aria-hidden="true">{i + 1}</span>{text}</button>)}</div>
         {feedback === 'retry' && <div className="feedback retry" role="status"><LumiPortrait mood="support"/><strong>{t('Хорошая попытка. Посмотрим ещё раз.', 'Good try. Let’s look again.')}</strong><p>{lesson.quiz.explanation}</p></div>}
-        {feedback === 'done' ? <div className="feedback success" role="status"><LumiPortrait mood="success"/><h2>{mode === 'practice' ? t('Практика сохранена!', 'Practice saved!') : t('Урок завершён!', 'Lesson complete!')}</h2><p>{lesson.quiz.explanation}</p><ResultDetails lesson={lesson} t={t} notePanel={notePanel}/><p>{mode === 'practice' ? t('Практика не отмечает новый урок завершённым и не добавляет XP.', 'Practice does not complete a new lesson or award XP.') : t('20 XP за первое завершение. Повторы не начисляют опыт снова.', '20 XP for the first completion. Replays do not add more experience.')}</p><button className="primary" onClick={() => go('path')}>{t('Вернуться к маршруту', 'Return to the path')} →</button></div> : <div className="button-row">{mode !== 'practice' && <button className="secondary" disabled={!!pending} onClick={() => setStep(1)}>{t('Назад', 'Back')}</button>}<button className="primary" disabled={choice === null || !!pending || !state} onClick={check}>{pending ? t('Сохраняем…', 'Saving…') : t('Проверить ответ', 'Check answer')}</button></div>}
+        {feedback === 'done' ? <div className="feedback success" role="status"><LumiAnimation t={t} mood="success"/><h2>{mode === 'practice' ? t('Практика сохранена!', 'Practice saved!') : t('Урок завершён!', 'Lesson complete!')}</h2><p>{lesson.quiz.explanation}</p><ResultDetails lesson={lesson} t={t} notePanel={notePanel}/><p>{mode === 'practice' ? t('Практика не отмечает новый урок завершённым и не добавляет XP.', 'Practice does not complete a new lesson or award XP.') : t('20 XP за первое завершение. Повторы не начисляют опыт снова.', '20 XP for the first completion. Replays do not add more experience.')}</p><button className="primary" onClick={() => go('path')}>{t('Вернуться к маршруту', 'Return to the path')} →</button></div> : <div className="button-row">{mode !== 'practice' && <button className="secondary" disabled={!!pending} onClick={() => setStep(1)}>{t('Назад', 'Back')}</button>}<button className="primary" disabled={choice === null || !!pending || !state} onClick={check}>{pending ? t('Сохраняем…', 'Saving…') : t('Проверить ответ', 'Check answer')}</button></div>}
       </>}
     </article></section>;
 }

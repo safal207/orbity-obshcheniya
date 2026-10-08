@@ -162,7 +162,12 @@ for (const lang of ['ru', 'en']) {
     await check.click();
     const happy = page.locator('.feedback.success [data-lumi-mood=success]');
     await expect(happy).toBeVisible();
-    await expect(happy).toHaveCSS('animation-name', 'none');
+    const successVideo = happy.getByTestId('lumi-welcome-video');
+    await expect(successVideo).toBeVisible();
+    await expect(successVideo).toHaveAttribute('poster', /lumi-welcome-poster.*\.jpg$/);
+    expect(await successVideo.evaluate((media) => ({ paused: media.paused, autoplay: media.autoplay })))
+      .toEqual({ paused: true, autoplay: false });
+    await expect(happy.getByTestId('lumi-welcome-toggle')).toHaveAccessibleName(lang === 'ru' ? 'Включить приветствие Луми' : 'Play Lumi greeting');
     const saved = JSON.parse(await raw(page));
     expect(saved.completed['map-1']).toBeTruthy();
     await expect(page.getByTestId('xp')).toContainText('20 XP');
@@ -198,7 +203,11 @@ test('Lumi guided joy waits for the real Web Lock and does not award lesson XP',
   await expect(page.locator('[data-lumi-mood=success]')).toHaveCount(0);
   expect(await raw(page)).toBe(before);
   await page.evaluate(() => window.releaseLumiLock());
-  await expect(page.locator('.feedback.success [data-lumi-mood=success]')).toBeVisible();
+  const happy = page.locator('.feedback.success [data-lumi-mood=success]');
+  await expect(happy).toBeVisible();
+  await expect(happy.getByTestId('lumi-welcome-video')).toBeVisible();
+  expect(await happy.getByTestId('lumi-welcome-video').evaluate((media) => ({ muted: media.muted, loop: media.loop })))
+    .toEqual({ muted: true, loop: false });
   const saved = JSON.parse(await raw(page));
   expect(saved.guidedFlow.step).toBe(1);
   expect(saved.completed).toEqual({});
@@ -252,7 +261,8 @@ test('current navigation has one semantic marker across learning and mission rou
 });
 
 
-test('Lumi route tips are contextual, dismissible, localized and read-only', async ({ page }) => {
+test('Lumi animates each page transition with contextual, dismissible, localized and read-only tips', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('/');
   const before = await raw(page);
   await expect(page.getByTestId('lumi-route-tip')).toHaveCount(0);
@@ -261,18 +271,40 @@ test('Lumi route tips are contextual, dismissible, localized and read-only', asy
   const tip = page.getByTestId('lumi-route-tip');
   await expect(tip).toBeVisible();
   await expect(tip).toContainText('Лучше один маленький шаг');
+  const animation = tip.getByTestId('lumi-welcome-video');
+  await expect(animation).toBeVisible();
+  await expect(animation).toHaveAttribute('poster', /lumi-welcome-poster.*\.jpg$/);
+  expect(await animation.evaluate((media) => ({ paused: media.paused, autoplay: media.autoplay })))
+    .toEqual({ paused: true, autoplay: false });
+  await expect(tip.getByTestId('lumi-welcome-toggle')).toHaveAccessibleName('Включить приветствие Луми');
   expect(await raw(page)).toBe(before);
 
   await tip.getByRole('button', { name: 'Скрыть совет Луми' }).click();
   await expect(tip).toHaveCount(0);
   await page.getByRole('button', { name: 'Маршрут', exact: true }).click();
+  await expect(tip).toBeVisible();
+  await expect(tip.getByTestId('lumi-welcome-video')).toBeVisible();
+  expect(await raw(page)).toBe(before);
   await page.getByRole('button', { name: 'В жизни', exact: true }).click();
-  await expect(page.getByTestId('lumi-route-tip')).toHaveCount(0);
+  await expect(tip).toBeVisible();
+  await expect(tip).toContainText('Лучше один маленький шаг');
+  await expect(tip.getByTestId('lumi-welcome-video')).toBeVisible();
+  expect(await raw(page)).toBe(before);
+
+  await page.getByRole('button', { name: 'Открыть пошагово', exact: true }).first().click();
+  await expect(tip).toContainText('Пусть шаг будет добровольным');
+  await expect(tip.getByTestId('lumi-welcome-video')).toBeVisible();
+  expect(await raw(page)).toBe(before);
 
   await page.getByRole('button', { name: 'Прогресс', exact: true }).click();
   await expect(page.getByTestId('lumi-route-tip')).toContainText('след практики');
   await page.getByRole('button', { name: 'Switch to English' }).click();
   await expect(page.getByTestId('lumi-route-tip')).toContainText('trace of practice');
+  await expect(tip.getByTestId('lumi-welcome-toggle')).toHaveAccessibleName('Play Lumi greeting');
+  await tip.getByRole('button', { name: 'Dismiss Lumi tip' }).click();
+  await expect(tip).toHaveCount(0);
+  await page.getByRole('button', { name: 'Переключить на русский' }).click();
+  await expect(tip).toHaveCount(0);
   expect(await raw(page)).toBe(before);
 });
 

@@ -18,25 +18,35 @@ export function LumiPortrait({ mood = 'idle' }) {
   </span>;
 }
 
-/** A short, silent greeting. Motion preferences and controls never touch progress. */
-function LumiWelcome({ t, mood }) {
+/** A short, silent animation. Motion preferences and controls never touch progress. */
+export function LumiAnimation({ t, mood = 'idle' }) {
   const videoRef = useRef(null);
   const failedSources = useRef(0);
+  const inView = useRef(false);
+  const userPaused = useRef(false);
   const [unavailable, setUnavailable] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(() => matchMedia('(prefers-reduced-motion: reduce)').matches);
 
   useEffect(() => {
     const media = matchMedia('(prefers-reduced-motion: reduce)');
+    const resumeVisible = () => {
+      const video = videoRef.current;
+      if (video && inView.current && !media.matches && !document.hidden && !userPaused.current && !video.ended) {
+        video.play().catch(() => setPlaying(false));
+      }
+    };
     const onMotion = () => {
       setReducedMotion(media.matches);
       if (media.matches) videoRef.current?.pause();
     };
-    const onVisibility = () => { if (document.hidden) videoRef.current?.pause(); };
+    const onVisibility = () => { if (document.hidden) videoRef.current?.pause(); else resumeVisible(); };
     media.addEventListener('change', onMotion);
     document.addEventListener('visibilitychange', onVisibility);
     const observer = new IntersectionObserver(([entry]) => {
+      inView.current = entry.isIntersecting;
       if (!entry.isIntersecting) videoRef.current?.pause();
+      else resumeVisible();
     });
     if (videoRef.current) observer.observe(videoRef.current);
     return () => {
@@ -49,7 +59,8 @@ function LumiWelcome({ t, mood }) {
   async function toggle() {
     const video = videoRef.current;
     if (!video) return;
-    if (!video.paused) { video.pause(); return; }
+    if (!video.paused) { userPaused.current = true; video.pause(); return; }
+    userPaused.current = false;
     if (video.ended) video.currentTime = 0;
     try { await video.play(); }
     catch { setPlaying(false); } // Autoplay restrictions leave the poster and play control available.
@@ -61,7 +72,7 @@ function LumiWelcome({ t, mood }) {
   }
 
   if (unavailable) return <LumiPortrait mood={mood}/>;
-  return <div className="lumi-welcome">
+  return <div className="lumi-welcome" data-lumi-mood={mood} aria-live="off">
     <video ref={videoRef} className="lumi-welcome-video" data-testid="lumi-welcome-video"
       poster={welcomePoster} width={544} height={544}
       muted playsInline autoPlay={!reducedMotion} preload={reducedMotion ? 'none' : 'auto'}
@@ -82,7 +93,7 @@ function LumiWelcome({ t, mood }) {
 /** No storage, timers, XP, inferred emotions, or live-region duplication. */
 export function Lumi({ t, mood = 'idle', message, hero = false }) {
   return <div className={`lumi-card${hero ? ' lumi-hero' : ''}`} data-testid="lumi-companion">
-    {hero ? <LumiWelcome t={t} mood={mood}/> : <LumiPortrait mood={mood}/>}
+    {hero ? <LumiAnimation t={t} mood={mood}/> : <LumiPortrait mood={mood}/>}
     <div className="lumi-copy">
       <span className="lumi-name">{t('Луми · ваш спутник', 'Lumi · your companion')}</span>
       <p>{message || t('Один маленький шаг — в вашем темпе.', 'One small step, at your own pace.')}</p>
@@ -93,7 +104,7 @@ export function Lumi({ t, mood = 'idle', message, hero = false }) {
 /** Lightweight route hint: visual only, dismissible, and never reads or writes progress. */
 export function LumiTip({ t, message, onClose }) {
   return <aside className="lumi-tip" data-testid="lumi-route-tip" aria-label={t('Совет Луми', 'Lumi tip')}>
-    <LumiPortrait mood="support"/>
+    <LumiAnimation t={t} mood="support"/>
     <div className="lumi-tip-copy">
       <span className="lumi-name">{t('Луми рядом', 'Lumi is here')}</span>
       <p>{message}</p>
