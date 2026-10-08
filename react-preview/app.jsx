@@ -8,6 +8,7 @@ import { learningRoute, resumeTarget, nextLesson } from './navigation.mjs';
 import { TopicPicker, Guided } from './guided.jsx';
 import { Review } from './review.jsx';
 import { ResultDetails } from './result-details.jsx';
+import { QuickHelp } from './quick-help.jsx';
 import './style.css';
 import './lumi.css';
 import { Lumi, LumiPortrait, LumiTip } from './lumi.jsx';
@@ -261,7 +262,7 @@ function App() {
   const resume = resumeTarget(state, course.lessons);
   const savedNext = nextLesson(state, course.lessons);
   const guidedTopic = route.topic || state?.guidedFlow?.topic;
-  const activeNav = ['lesson', 'practice', 'review', 'start', 'guided'].includes(route.view) ? 'path' : route.view === 'mission' ? 'missions' : route.view;
+  const activeNav = ['lesson', 'practice', 'review', 'start', 'guided', 'now'].includes(route.view) ? 'path' : route.view === 'mission' ? 'missions' : route.view;
   const nav = [['path', '✦', t('Маршрут', 'Learn')], ['missions', '◎', t('В жизни', 'Real life')], ['progress', '▥', t('Прогресс', 'Progress')]];
   return <div className="app-shell">
     <a className="skip" href="#main-content" onClick={(e) => { e.preventDefault(); document.getElementById('main-content')?.focus(); }}>{t('К содержанию', 'Skip to content')}</a>
@@ -287,7 +288,8 @@ function App() {
               <h1 id="page-title" tabIndex={-1}>{t('Ближе друг', 'A little closer')}<br/>{t('к другу.', 'to each other.')}</h1>
               <p>{t('Учимся слышать, говорить и договариваться — по одному разговору.', 'Practice listening, speaking and finding common ground. One conversation at a time.')}</p>
               <div className="button-row"><button className="primary" data-testid="resume" disabled={!resume || !!pending} onClick={() => go(resume)}>{state?.guidedFlow ? t('Продолжить знакомство', 'Continue the introduction') : t('Продолжить путь', 'Continue your journey')} <span aria-hidden="true">→</span></button>
-                <button className="secondary" onClick={() => go('start')}>{t('Выбрать ситуацию', 'Choose a situation')}</button></div>
+                <button className="secondary help-now-button" data-testid="help-now" onClick={() => go('now')}>✦ {t('Помоги мне сейчас', 'Help me now')}</button>
+                <button className="secondary" onClick={() => go('start')}>{t('Выбрать тему', 'Choose a topic')}</button></div>
               {state && <p className="muted" data-testid="resume-label">{state.guidedFlow ? state.guidedFlow.step < 3 ? `${t('Сохранён вопрос', 'Saved question')} ${state.guidedFlow.step + 1}/3` : t('Три вопроса готовы — откройте результат.', 'Three questions are ready — open the result.') : savedNext ? `${t('Следующий урок', 'Next lesson')}: ${savedNext.title}` : t('Все уроки пройдены.', 'All lessons completed.')}</p>}
             </div><Lumi t={t} hero mood={error ? 'support' : 'idle'} message={error ? t('Сначала разберёмся с сообщением выше.', 'Let’s address the message above first.') : undefined}/></section>
               <div className="unit-picker"><label htmlFor="unit">{t('Ваша орбита', 'Your orbit')}</label><select id="unit" value={module.id} disabled={!state || !!pending} aria-busy={!!pending} onChange={(e) => selectModule(e.target.value)}>{course.modules.map((m, i) => <option key={m.id} value={m.id}>{String(i + 1).padStart(2, '0')} · {m.title}</option>)}</select></div>
@@ -304,6 +306,7 @@ function App() {
               <section className="card practice-card"><span className="big-symbol" aria-hidden="true">↺</span><h2>{t('Закрепим хорошее', 'Make it stick')}</h2><p>{stats?.due.length ? `${stats.due.length} ${t('уроков пора повторить', 'lessons ready for review')}` : t('Один вопрос, чтобы вспомнить важное.', 'One question to revisit something useful.')}</p><button className="secondary" onClick={() => go(`practice/${review.id}`)}>{t('Короткая практика', 'Quick practice')}</button><div className="button-row"><button className="secondary" onClick={() => go('review')}>{t('Повторить пройденное', 'Review completed lessons')}</button></div></section>
               <section className="kind-note"><span aria-hidden="true">♡</span><p>{t('Здесь нет «плохих партнёров» и потерянных жизней. Можно ошибаться, делать паузу и возвращаться.', 'No “bad partners”, no lost lives. You can make mistakes, take a break and return.')}</p></section>
             </aside></div>}
+          {route.view === 'now' && <QuickHelp t={t} lang={lang} scenarioId={route.scenarioId} go={go}/>}
           {route.view === 'start' && <TopicPicker state={state} pending={pending} t={t} start={start}/>}
           {route.view === 'guided' && (guidedTopic ? <Guided key={guidedTopic} topic={guidedTopic} state={state} course={course} store={store} pending={pending} t={t} write={write} notePanel={notePanel} go={go} onSync={() => setError((current) => current === 'FLOW_CONFLICT' ? null : current)}/> : <TopicPicker state={state} pending={pending} t={t} start={start}/>)}
           {route.view === 'review' && <Review state={state} course={course} store={store} pending={pending} t={t} write={write} notePanel={notePanel} go={go} onSync={() => setError((current) => current === 'FLOW_CONFLICT' ? null : current)}/>}
