@@ -153,3 +153,28 @@ test('current navigation has one semantic marker across learning and mission rou
     await expect(active).toHaveClass(/active/);
   }
 });
+
+
+test('Lumi route tips are contextual, dismissible, localized and read-only', async ({ page }) => {
+  await page.goto('/');
+  const before = await raw(page);
+  await expect(page.getByTestId('lumi-route-tip')).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'В жизни', exact: true }).click();
+  const tip = page.getByTestId('lumi-route-tip');
+  await expect(tip).toBeVisible();
+  await expect(tip).toContainText('Лучше один маленький шаг');
+  expect(await raw(page)).toBe(before);
+
+  await tip.getByRole('button', { name: 'Скрыть совет Луми' }).click();
+  await expect(tip).toHaveCount(0);
+  await page.getByRole('button', { name: 'Маршрут', exact: true }).click();
+  await page.getByRole('button', { name: 'В жизни', exact: true }).click();
+  await expect(page.getByTestId('lumi-route-tip')).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Прогресс', exact: true }).click();
+  await expect(page.getByTestId('lumi-route-tip')).toContainText('след практики');
+  await page.getByRole('button', { name: 'Switch to English' }).click();
+  await expect(page.getByTestId('lumi-route-tip')).toContainText('trace of practice');
+  expect(await raw(page)).toBe(before);
+});
