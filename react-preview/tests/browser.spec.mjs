@@ -26,6 +26,11 @@ for (const width of [320, 390, 768, 1280]) {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     const errors = []; page.on('pageerror', (e) => errors.push(e.message));
     await page.goto('/');
+    if (width <= 700) {
+      await expect(page.locator('.mobile-count')).toBeVisible();
+      await expect(page.locator('.lesson-count')).toBeHidden();
+      await expect(page.getByTestId('xp')).toContainText('0 XP · 0/32');
+    }
     await expect(page.locator('.path-stop')).toHaveCount(4);
     await expect(page.locator('#unit option')).toHaveCount(8);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
