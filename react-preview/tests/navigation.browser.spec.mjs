@@ -217,3 +217,43 @@ for (const width of [320, 390]) {
     await page.screenshot({ path: info.outputPath(`guided-en-${width}.png`), fullPage: true });
   });
 }
+
+test('help now: five situations are bilingual, deep-linkable, mobile-safe and read-only', async ({ page }, info) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  const state = { ...empty(), completed: { 'map-1': 1000 }, notes: { 'map-1': 'KEEP' }, focusModule: 'needs' };
+  await seed(page, state);
+  await page.goto('/');
+
+  await page.getByTestId('help-now').click();
+  await expect(page).toHaveURL(/#now$/);
+  await expect(page.getByTestId('quick-help')).toBeVisible();
+  await expect(page.locator('.quick-help-choice')).toHaveCount(5);
+  await expect(page.getByRole('heading', { name: 'Что происходит прямо сейчас?' })).toBeFocused();
+  expect(await read(page)).toEqual(state);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+
+  await page.getByRole('button', { name: /Мы поссорились/ }).click();
+  await expect(page).toHaveURL(/#now\/conflict$/);
+  await expect(page.getByRole('heading', { name: 'Мы поссорились' })).toBeFocused();
+  await expect(page.locator('.quick-help-result blockquote')).toContainText('Давай сделаем паузу');
+  expect(await read(page)).toEqual(state);
+  await page.screenshot({ path: info.outputPath('help-now-conflict-ru-320.png'), fullPage: true });
+
+  await page.getByRole('button', { name: 'Switch to English' }).click();
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+  await expect(page.getByRole('heading', { name: 'We had a fight' })).toBeVisible();
+  await expect(page.locator('.quick-help-result blockquote')).toContainText('take 20 minutes');
+  expect(await read(page)).toEqual(state);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+
+  await page.reload();
+  await expect(page).toHaveURL(/#now\/conflict$/);
+  await expect(page.getByRole('heading', { name: 'We had a fight' })).toBeVisible();
+  expect(await read(page)).toEqual(state);
+
+  await page.getByRole('button', { name: /Open the matching orbit/ }).click();
+  await expect(page).toHaveURL(/#module\/conflict$/);
+  await expect(page.locator('#unit')).toHaveValue('conflict');
+  expect(await read(page)).toEqual(state);
+});
