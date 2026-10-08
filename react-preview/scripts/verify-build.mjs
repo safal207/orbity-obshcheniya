@@ -38,4 +38,8 @@ assert.ok(assets.some((file) => /^lumi-portraits-.*\.webp$/.test(file)), 'the pu
 assert.ok(!assets.some((file) => /\.html$/i.test(file)), 'HTML entries are bundled at the site root, never copied as raw assets');
 assert.ok(readFileSync(new URL('orbity-og.png', build)).length > 20000, 'the public site contains a raster share card');
 assert.ok(readFileSync(new URL('orbity-icon.png', build)).length > 10000, 'the public site contains a Lumi app icon');
-console.log('Production build: RU/EN entries, SEO/share metadata, social assets, shared app and Lumi verified.');
+assert.match(readFileSync(new URL('robots.txt', build), 'utf8'), /Sitemap: https:\/\/safal207\.github\.io\/orbity-obshcheniya\/sitemap\.xml/, 'robots points to the public sitemap');
+assert.match(readFileSync(new URL('sitemap.xml', build), 'utf8'), /orbity-obshcheniya\/en\.html/, 'sitemap contains the English entry');
+const manifest = JSON.parse(readFileSync(new URL('site.webmanifest', build), 'utf8'));
+assert.equal(manifest.icons?.[0]?.src, './orbity-icon.png', 'manifest uses the generated Lumi icon');
+console.log('Production build: RU/EN entries, SEO/share metadata, sitemap, social assets, shared app and Lumi verified.');
