@@ -118,6 +118,10 @@ test('explicit-on learning haptics still require persisted success and preserve 
   await page.evaluate(({ key, fixture }) => localStorage.setItem(key, JSON.stringify(fixture)), { key: PROGRESS_KEY, fixture });
   await page.reload(); await (await settings(page)).getByRole('switch').check();
   await page.goto('/#start'); await page.locator('[data-topic=needs]').click();
+  // Starting guided mode writes asynchronously. Wait until its own commit has
+  // completed before injecting a simulated failure for the following answer.
+  await expect(page).toHaveURL(/#guided\/needs$/);
+  await expect(page.locator('.lesson-top')).toContainText('1/3');
   const before = await raw(page);
   await page.evaluate((key) => {
     const original = Storage.prototype.setItem;
