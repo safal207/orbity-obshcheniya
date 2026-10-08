@@ -13,6 +13,7 @@ import './style.css';
 import './lumi.css';
 import { Lumi, LumiPortrait, LumiAnimation, LumiTip } from './lumi.jsx';
 import { vibrateOnSavedProgress } from './haptics.mjs';
+import { HapticsSettings } from './haptics-settings.jsx';
 
 const store = createProgressStore({ lessons: ru.lessons, missions: ru.missions, requireLessonStart: true });
 const accents = ['#b7c6ff', '#c9ee92', '#ffcf88', '#d8bdff', '#ffbab6', '#a9e6dd', '#f4bde7', '#cbdc9f'];
@@ -287,6 +288,7 @@ function App() {
         <button className="language" onClick={() => setLang(lang === 'ru' ? 'en' : 'ru')} aria-label={t('Switch to English', 'Переключить на русский')}>{lang === 'ru' ? 'EN' : 'RU'}</button>
       </header>
       <main id="main-content" tabIndex={-1}>
+        <HapticsSettings t={t}/>
         {error && <div className="alert" role="alert"><LumiPortrait mood="support"/><p>{explain(error)}</p><button className="secondary" onClick={refresh}>{t('Проверить снова', 'Check again')}</button><button className="secondary" onClick={() => go('progress')}>{t('Резервная копия', 'Backup')}</button></div>}
         {notice && <p className="notice" role="status">{notice}</p>}
         {routeTip && <LumiTip key={JSON.stringify([route.view, route.id, route.topic, route.moduleId, route.missionId, route.scenarioId])} t={t} message={t(...routeTipCopy[routeTip])} onClose={() => setRouteTip(null)}/>}
