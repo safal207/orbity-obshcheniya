@@ -66,6 +66,42 @@ progress::-moz-progress-bar{background:#7762c6}
 .lumi-tip .lumi-welcome-toggle{right:3px;bottom:3px}
 @media(max-width:370px){.feedback>.lumi-welcome{float:none;width:104px;margin:0 0 16px}.lumi-tip .lumi-welcome{width:72px}.lumi-tip{gap:8px}}
 
+/* Home greeting: a full-size Lumi, not a thumbnail. Keep reward/route art compact.
+   The companion is decorative; learning controls retain their existing DOM order. */
+.hero {
+  grid-template-columns: minmax(0, 1fr) clamp(220px, 22vw, 280px);
+  grid-template-areas: "copy companion";
+  gap: clamp(16px, 2vw, 28px);
+}
+.hero > :first-child { grid-area: copy; min-width: 0; }
+.hero > .lumi-hero {
+  grid-area: companion;
+  width: 100%;
+  max-width: 280px;
+  justify-self: center;
+  align-items: center;
+  flex-direction: column;
+  gap: 14px;
+  text-align: center;
+}
+.hero .lumi-welcome,
+.hero .lumi-portrait { width: 100%; max-width: 280px; }
+.hero .lumi-welcome {
+  border-radius: 28px;
+  box-shadow: 0 0 0 1px #c9b9ef44, 0 0 32px #b29bde26, 0 12px 28px #0f0b2533;
+}
+.hero .lumi-copy { max-width: 260px; }
+.hero .lumi-name { font-size: .74rem; line-height: 1.4; }
+.hero .lumi-copy p { font-size: .88rem; }
+@media (max-width: 970px) {
+  .hero {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "companion" "copy";
+    gap: 20px;
+  }
+  .hero > .lumi-hero { width: min(100%, clamp(220px, 65vw, 280px)); }
+}
+
 /* A selected answer is not a successful answer. All four quiz screens already
    render localized status text; the dashed retry border adds a non-color cue.
    Without :has() support, selection safely stays neutral instead of green. */
