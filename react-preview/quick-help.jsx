@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Lumi } from './lumi.jsx';
 
 const situations = [
@@ -89,6 +89,47 @@ const situations = [
   },
 ];
 
+function PhraseCopy({ phrase, t }) {
+  const [state, setState] = useState('');
+  const phraseRef = useRef(null);
+  const request = useRef(0);
+  // A new scenario/language mounts a new control. Its pending request must not
+  // announce a result for the phrase now on screen or update an unmounted view.
+  useEffect(() => () => { request.current += 1; }, []);
+
+  async function copyPhrase() {
+    const activeRequest = ++request.current;
+    setState('copying');
+    try {
+      if (typeof navigator.clipboard?.writeText !== 'function') throw new Error('Clipboard unavailable');
+      await navigator.clipboard.writeText(phrase);
+      if (request.current === activeRequest) setState('copied');
+    } catch {
+      if (request.current === activeRequest) setState('failed');
+    }
+  }
+
+  function selectPhrase() {
+    const node = phraseRef.current;
+    const selection = window.getSelection();
+    if (!node || !selection) return;
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    node.focus();
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }
+
+  return <>
+    <blockquote ref={phraseRef} tabIndex={-1} data-testid="quick-help-phrase">{phrase}</blockquote>
+    <div className="button-row">
+      <button className="secondary" disabled={state === 'copying'} onClick={copyPhrase}>{state === 'copying' ? t('Копируем…', 'Copying…') : t('Скопировать фразу', 'Copy phrase')}</button>
+      {state === 'failed' && <button className="secondary" onClick={selectPhrase}>{t('Выделить фразу', 'Select phrase')}</button>}
+    </div>
+    {state && <p role="status" data-testid="quick-help-copy-status">{state === 'copied' ? t('Фраза скопирована.', 'Phrase copied.') : state === 'copying' ? t('Копируем фразу…', 'Copying the phrase…') : t('Не удалось скопировать автоматически. Выделите фразу и скопируйте её через меню устройства или Ctrl/Cmd+C.', 'Could not copy automatically. Select the phrase and copy it using your device menu or Ctrl/Cmd+C.')}</p>}
+  </>;
+}
+
 export function QuickHelp({ t, lang, scenarioId, go }) {
   const selected = situations.find((item) => item.id === scenarioId) || null;
   const copy = selected?.[lang] || null;
@@ -116,7 +157,7 @@ export function QuickHelp({ t, lang, scenarioId, go }) {
         <h2>{t('Сначала сделайте это', 'Start with this')}</h2>
         <p className="lead">{copy.step}</p>
         <h2>{t('Можно сказать так', 'You could say')}</h2>
-        <blockquote>{copy.phrase}</blockquote>
+        <PhraseCopy key={`${selected.id}:${lang}`} phrase={copy.phrase} t={t}/>
         <p className="muted">{copy.why}</p>
         <div className="button-row">
           <button className="primary" onClick={() => go(selected.target)}>{t('Открыть подходящую орбиту', 'Open the matching orbit')} →</button>
