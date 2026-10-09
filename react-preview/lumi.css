@@ -65,3 +65,32 @@ progress::-moz-progress-bar{background:#7762c6}
 .lumi-tip .lumi-welcome{width:76px;max-width:76px;border-radius:16px;box-shadow:0 4px 12px #29204218}
 .lumi-tip .lumi-welcome-toggle{right:3px;bottom:3px}
 @media(max-width:370px){.feedback>.lumi-welcome{float:none;width:104px;margin:0 0 16px}.lumi-tip .lumi-welcome{width:72px}.lumi-tip{gap:8px}}
+
+/* A selected answer is not a successful answer. All four quiz screens already
+   render localized status text; the dashed retry border adds a non-color cue.
+   Without :has() support, selection safely stays neutral instead of green. */
+.lesson-card > .choices > .choice.selected {
+  border-color: #7963b5;
+  background: #efeaff;
+  box-shadow: 0 3px 0 #7963b5;
+}
+.lesson-card > .choices > .choice.selected .choice-number {
+  border-color: currentColor;
+  color: inherit;
+}
+.lesson-card:has(> .feedback.retry) > .choices > .choice.selected {
+  border-color: #946720;
+  border-style: dashed;
+  background: #fff0d7;
+  color: #644414;
+  box-shadow: 0 3px 0 #946720;
+}
+/* Existing .feedback.success is mounted only after the save succeeds. */
+.lesson-card:has(> .feedback.success) > .choices > .choice.selected {
+  border-color: #668b3b;
+  background: #e4f1cf;
+  color: #304825;
+  box-shadow: 0 3px 0 #668b3b;
+  opacity: 1;
+  cursor: default;
+}
