@@ -70,10 +70,13 @@ progress::-moz-progress-bar{background:#7762c6}
    The companion is decorative; learning controls retain their existing DOM order. */
 .hero {
   grid-template-columns: minmax(0, 1fr) clamp(220px, 22vw, 280px);
-  grid-template-areas: "copy companion";
+  grid-template-areas: "copy companion" "help companion" "learning companion";
   gap: clamp(16px, 2vw, 28px);
 }
 .hero > :first-child { grid-area: copy; min-width: 0; }
+.hero > .hero-help { grid-area: help; justify-self: start; max-width: 100%; }
+.hero > .hero-learning { grid-area: learning; min-width: 0; }
+.hero-learning .button-row { margin-top: 0; }
 .hero > .lumi-hero {
   grid-area: companion;
   width: 100%;
@@ -96,8 +99,9 @@ progress::-moz-progress-bar{background:#7762c6}
 @media (max-width: 970px) {
   .hero {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-areas: "companion" "copy";
+    grid-template-areas: "companion" "help" "copy" "learning";
     gap: 20px;
   }
   .hero > .lumi-hero { width: min(100%, clamp(220px, 65vw, 280px)); }
+  .hero > .hero-help { justify-self: center; width: 100%; }
 }

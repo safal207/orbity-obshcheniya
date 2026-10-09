@@ -113,7 +113,11 @@ function App() {
     history.replaceState(history.state, '', url);
   }, [lang]);
   useEffect(() => {
-    document.getElementById('page-title')?.focus();
+    const title = document.getElementById('page-title');
+    if (route.view === 'path') {
+      window.scrollTo(0, 0);
+      title?.focus({ preventScroll: true });
+    } else title?.focus();
     const selected = ru.lessons.find((l) => l.id === route.id);
     if (selected) setModuleId(selected.moduleId);
     else if (route.moduleId && ru.modules.some((m) => m.id === route.moduleId)) setModuleId(route.moduleId);
@@ -270,9 +274,15 @@ function App() {
   const mission = course.missions.find((item) => item.id === route.missionId);
   const resume = resumeTarget(state, course.lessons);
   const savedNext = nextLesson(state, course.lessons);
+  const newLearner = state && !state.guidedFlow && !state.currentLessonId && stats.count === 0;
+  const resumeCopy = state?.guidedFlow
+    ? state.guidedFlow.step === 3 ? t('Посмотреть результат', 'See your result') : t('Продолжить знакомство', 'Continue the introduction')
+    : !savedNext ? t('Посмотреть прогресс', 'See your progress')
+      : newLearner ? t('Начать первый урок', 'Start your first lesson') : t('Продолжить путь', 'Continue your journey');
   const guidedTopic = route.topic || state?.guidedFlow?.topic;
   const activeNav = ['lesson', 'practice', 'review', 'start', 'guided', 'now'].includes(route.view) ? 'path' : route.view === 'mission' ? 'missions' : route.view;
   const nav = [['path', '✦', t('Маршрут', 'Learn')], ['missions', '◎', t('В жизни', 'Real life')], ['progress', '▥', t('Прогресс', 'Progress')]];
+  const routeGreeting = routeTip && <LumiTip key={JSON.stringify([route.view, route.id, route.topic, route.moduleId, route.missionId, route.scenarioId])} t={t} message={t(...routeTipCopy[routeTip])} onClose={() => setRouteTip(null)}/>;
   return <div className="app-shell">
     <a className="skip" href="#main-content" onClick={(e) => { e.preventDefault(); document.getElementById('main-content')?.focus(); }}>{t('К содержанию', 'Skip to content')}</a>
     <aside className="sidebar">
@@ -291,17 +301,18 @@ function App() {
         <HapticsSettings t={t}/>
         {error && <div className="alert" role="alert"><LumiPortrait mood="support"/><p>{explain(error)}</p><button className="secondary" onClick={refresh}>{t('Проверить снова', 'Check again')}</button><button className="secondary" onClick={() => go('progress')}>{t('Резервная копия', 'Backup')}</button></div>}
         {notice && <p className="notice" role="status">{notice}</p>}
-        {routeTip && <LumiTip key={JSON.stringify([route.view, route.id, route.topic, route.moduleId, route.missionId, route.scenarioId])} t={t} message={t(...routeTipCopy[routeTip])} onClose={() => setRouteTip(null)}/>}
+        {route.view !== 'path' && routeGreeting}
         {!loaded ? <p role="status">{t('Читаем ваш прогресс…', 'Reading your progress…')}</p> : <>
           {route.view === 'path' && <div className="dashboard">
             <div className="journey"><section className="hero"><div><span className="eyebrow">{t('МАЛЕНЬКИЙ ШАГ. БОЛЬШЕ ПОНИМАНИЯ.', 'SMALL STEPS. MORE UNDERSTANDING.')}</span>
               <h1 id="page-title" tabIndex={-1}>{t('Ближе друг', 'A little closer')}<br/>{t('к другу.', 'to each other.')}</h1>
               <p>{t('Учимся слышать, говорить и договариваться — по одному разговору.', 'Practice listening, speaking and finding common ground. One conversation at a time.')}</p>
-              <div className="button-row"><button className="primary" data-testid="resume" disabled={!resume || !!pending} onClick={() => go(resume)}>{state?.guidedFlow ? t('Продолжить знакомство', 'Continue the introduction') : t('Продолжить путь', 'Continue your journey')} <span aria-hidden="true">→</span></button>
-                <button className="secondary help-now-button" data-testid="help-now" onClick={() => go('now')}>✦ {t('Помоги мне сейчас', 'Help me now')}</button>
+            </div><button className="primary hero-help" data-testid="help-now" onClick={() => go('now')}>✦ {t('Помоги мне сейчас', 'Help me now')} <span aria-hidden="true">→</span></button><div className="hero-learning">
+              <div className="button-row"><button className="secondary" data-testid="resume" disabled={!resume || !!pending} onClick={() => go(resume)}>{resumeCopy} <span aria-hidden="true">→</span></button>
                 <button className="secondary" onClick={() => go('start')}>{t('Выбрать ситуацию', 'Choose a situation')}</button></div>
               {state && <p className="muted" data-testid="resume-label">{state.guidedFlow ? state.guidedFlow.step < 3 ? `${t('Сохранён вопрос', 'Saved question')} ${state.guidedFlow.step + 1}/3` : t('Три вопроса готовы — откройте результат.', 'Three questions are ready — open the result.') : savedNext ? `${t('Следующий урок', 'Next lesson')}: ${savedNext.title}` : t('Все уроки пройдены.', 'All lessons completed.')}</p>}
             </div><Lumi t={t} hero mood={error ? 'support' : 'idle'} message={error ? t('Сначала разберёмся с сообщением выше.', 'Let’s address the message above first.') : undefined}/></section>
+              {routeGreeting}
               <div className="unit-picker"><label htmlFor="unit">{t('Ваша орбита', 'Your orbit')}</label><select id="unit" value={module.id} disabled={!state || !!pending} aria-busy={!!pending} onChange={(e) => selectModule(e.target.value)}>{course.modules.map((m, i) => <option key={m.id} value={m.id}>{String(i + 1).padStart(2, '0')} · {m.title}</option>)}</select></div>
               <section className="unit" style={{ '--accent': accents[unitIndex] }} aria-labelledby="unit-title"><div className="unit-header"><span className="unit-symbol" aria-hidden="true">{symbols[unitIndex]}</span><div><span className="eyebrow">{t('ОРБИТА', 'ORBIT')} {unitIndex + 1} / {course.modules.length}</span><h2 id="unit-title">{module.title}</h2><p>{module.description}</p></div></div>
                 <ol className="lesson-path">{unitLessons.map((l, i) => {
