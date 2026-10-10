@@ -18,6 +18,7 @@ for (const width of [320, 390, 768, 1280]) {
     await page.goto('/');
     const companion = page.locator('.hero [data-testid=lumi-companion]');
     await expect(companion).toContainText('Луми');
+    await expect(companion).toContainText('Учимся говорить о потребностях.');
     const video = companion.getByTestId('lumi-welcome-video');
     await expect(video).toBeVisible();
     await expect(video).toHaveAttribute('aria-hidden', 'true');
@@ -44,7 +45,7 @@ for (const width of [320, 390, 768, 1280]) {
     await page.screenshot({ path: info.outputPath(`lumi-path-ru-${width}.png`), fullPage: true });
     await page.getByRole('button', { name: 'Switch to English' }).click();
     await expect(companion).toContainText('Lumi');
-    await expect(companion).toContainText('at your own pace');
+    await expect(companion).toContainText('Learn to express your needs.');
     await expect(companion.getByTestId('lumi-welcome-toggle')).toHaveAccessibleName('Play Lumi greeting');
     expect(await raw(page)).toBe(before); // Rendering and localization are read-only.
     await fits(page);
