@@ -1,4 +1,4 @@
-import React, { useLayoutEffect, useRef } from 'react';
+import React, { useLayoutEffect, useRef, useState } from 'react';
 import { LumiAnimation, LumiPortrait } from './lumi.jsx';
 import './answer-feedback.css';
 
@@ -8,8 +8,13 @@ function reveal(target) {
 }
 
 // A failed save must reveal its error, never a successful next step.
-export function revealAnswerError() {
-  requestAnimationFrame(() => reveal(document.querySelector('.alert[role="alert"]')));
+export function useAnswerError() {
+  const [failedAttempt, setFailedAttempt] = useState(0);
+  useLayoutEffect(() => {
+    if (failedAttempt) reveal(document.querySelector('.alert[role="alert"]'));
+  }, [failedAttempt]);
+  // Wait for React to commit the error, including on repeated failed attempts.
+  return () => setFailedAttempt((attempt) => attempt + 1);
 }
 
 export function AnswerFeedback({ kind, title, explanation, actionLabel, onAction, disabled, t, children }) {

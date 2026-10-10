@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { GUIDED, answerGuided, nextLesson } from './navigation.mjs';
 import { Lumi, LumiAnimation } from './lumi.jsx';
-import { AnswerFeedback, revealAnswerError } from './answer-feedback.jsx';
+import { AnswerFeedback, useAnswerError } from './answer-feedback.jsx';
 import { vibrateOnSavedProgress } from './haptics.mjs';
 
 export function TopicPicker({ state, pending, t, start }) {
@@ -24,6 +24,7 @@ export function TopicPicker({ state, pending, t, start }) {
 }
 
 export function Guided({ topic, state, course, store, pending, t, write, notePanel, go, onSync }) {
+  const revealAnswerError = useAnswerError();
   const active = state?.guidedFlow;
   const [step, setStep] = useState(active?.topic === topic ? active.step : 0);
   const [choice, setChoice] = useState(null);

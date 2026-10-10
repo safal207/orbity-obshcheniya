@@ -8,7 +8,7 @@ import { learningRoute, resumeTarget, nextLesson } from './navigation.mjs';
 import { TopicPicker, Guided } from './guided.jsx';
 import { Review } from './review.jsx';
 import { ResultDetails } from './result-details.jsx';
-import { AnswerFeedback, revealAnswerError } from './answer-feedback.jsx';
+import { AnswerFeedback, useAnswerError } from './answer-feedback.jsx';
 import { QuickHelp } from './quick-help.jsx';
 import './style.css';
 import './lumi.css';
@@ -396,6 +396,7 @@ function MissionDetail({ mission, state, pending, t, write, go }) {
   </section>;
 }
 function Lesson({ lesson, mode, step, state, pending, t, write, notePanel, go }) {
+  const revealAnswerError = useAnswerError();
   const needsStart = mode === 'lesson' && step === 2 && !hasLessonStart(state, lesson.id);
   const [choice, setChoice] = useState(null);
   const [feedback, setFeedback] = useState(null);

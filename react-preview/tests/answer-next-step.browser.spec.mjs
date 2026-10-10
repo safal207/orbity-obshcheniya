@@ -153,6 +153,10 @@ for (const lang of ['ru', 'en']) {
     await expect(page.getByRole('alert')).toContainText(lang === 'ru' ? 'Не удалось сохранить' : 'Storage could not be read or written');
     await expect(page.locator('.answer-feedback')).toHaveCount(0);
     expect(await read(page)).toEqual(initial);
+    // The same error code must be revealed again after another explicit attempt.
+    await checkButton(page, lang).click();
+    await expect(page.getByRole('alert')).toBeFocused();
+    expect(await read(page)).toEqual(initial);
     await page.evaluate(() => window.restoreAnswerWrites());
     await checkButton(page, lang).click();
     await visibleAction(page);

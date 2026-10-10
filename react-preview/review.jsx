@@ -2,10 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { reviewQueue, answerReview } from './review.mjs';
 import { ResultDetails } from './result-details.jsx';
 import { LumiAnimation } from './lumi.jsx';
-import { AnswerFeedback, revealAnswerError } from './answer-feedback.jsx';
+import { AnswerFeedback, useAnswerError } from './answer-feedback.jsx';
 import { vibrateOnSavedProgress } from './haptics.mjs';
 
 export function Review({ state, course, store, pending, t, write, notePanel, go, onSync }) {
+  const revealAnswerError = useAnswerError();
   const [queue, setQueue] = useState(() => reviewQueue(state, course.lessons));
   const [position, setPosition] = useState(0);
   const [choice, setChoice] = useState(null);
