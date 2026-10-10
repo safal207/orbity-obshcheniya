@@ -248,7 +248,7 @@ test('a failed greeting falls back to the portrait and leaves lesson navigation 
 
 test('current navigation has one semantic marker across learning and mission routes', async ({ page }) => {
   for (const [hash, label] of [
-    ['path', 'Маршрут'], ['start', 'Маршрут'], ['guided/needs', 'Маршрут'],
+    ['path', 'Маршрут'], ['today', 'Маршрут'], ['start', 'Маршрут'], ['guided/needs', 'Маршрут'],
     ['lesson/map-1', 'Маршрут'], ['practice/map-1', 'Маршрут'], ['review', 'Маршрут'],
     [`mission/${missions[0].id}`, 'В жизни'], ['progress', 'Прогресс'],
   ]) {
