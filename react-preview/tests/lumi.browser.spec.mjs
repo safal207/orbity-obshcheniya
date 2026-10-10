@@ -220,7 +220,7 @@ test('missing greeting and portrait assets do not remove localized guidance or b
   await page.route(/\.(webm|mp4|jpg|webp)(?:\?.*)?$/, (route) => route.abort());
   await page.goto('/');
   const companion = page.locator('.hero [data-testid=lumi-companion]');
-  await expect(companion).toContainText('Один маленький шаг');
+  await expect(companion).toContainText('Учимся говорить о потребностях.');
   await expect(companion.locator('img')).toHaveCount(0);
   await expect(companion.locator('.lumi-fallback')).toBeVisible();
   await page.getByTestId('resume').click();
@@ -237,7 +237,7 @@ test('a failed greeting falls back to the portrait and leaves lesson navigation 
   await expect(companion.getByTestId('lumi-welcome-toggle')).toHaveCount(0);
   await expect(companion.locator('[data-lumi-mood=idle]')).toBeVisible();
   await expect.poll(() => companion.locator('img').evaluate((image) => image.complete && image.naturalWidth === 576)).toBe(true);
-  await expect(companion).toContainText('One small step');
+  await expect(companion).toContainText('Learn to express your needs.');
   const before = await raw(page);
   await page.getByTestId('resume').click();
   await expect(page).toHaveURL(/#lesson\//);
