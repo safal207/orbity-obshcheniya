@@ -105,3 +105,32 @@ progress::-moz-progress-bar{background:#7762c6}
   .hero > .lumi-hero { width: min(100%, clamp(220px, 65vw, 280px)); }
   .hero > .hero-help { justify-self: center; width: 100%; }
 }
+
+/* A selected answer is not a successful answer. All four quiz screens already
+   render localized status text; the dashed retry border adds a non-color cue.
+   Without :has() support, selection safely stays neutral instead of green. */
+.lesson-card > .choices > .choice.selected {
+  border-color: #7963b5;
+  background: #efeaff;
+  box-shadow: 0 3px 0 #7963b5;
+}
+.lesson-card > .choices > .choice.selected .choice-number {
+  border-color: currentColor;
+  color: inherit;
+}
+.lesson-card:has(> .feedback.retry) > .choices > .choice.selected {
+  border-color: #946720;
+  border-style: dashed;
+  background: #fff0d7;
+  color: #644414;
+  box-shadow: 0 3px 0 #946720;
+}
+/* Existing .feedback.success is mounted only after the save succeeds. */
+.lesson-card:has(> .feedback.success) > .choices > .choice.selected {
+  border-color: #668b3b;
+  background: #e4f1cf;
+  color: #304825;
+  box-shadow: 0 3px 0 #668b3b;
+  opacity: 1;
+  cursor: default;
+}
