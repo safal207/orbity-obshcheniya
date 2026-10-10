@@ -1,0 +1,68 @@
+name: PR17 live production QA (no deploy)
+on:
+  push:
+    branches: [qa/pr17-live-20261010]
+    paths:
+      - .github/workflows/pr17-live-qa.yml
+      - react-preview/scripts/prepare-pr17-production-qa.mjs
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: pr17-live-production-qa
+  cancel-in-progress: false
+jobs:
+  live-production:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: react-preview
+    steps:
+      - name: Check out QA-only branch
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+      - name: Install reviewed locked test dependencies
+        run: npm ci --no-fund
+      - name: Install real Chromium and Firefox
+        run: npx playwright install --with-deps chromium firefox
+      - name: Require actual Pages publication and prepare live-origin tests
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          node --check scripts/prepare-pr17-production-qa.mjs
+          node scripts/prepare-pr17-production-qa.mjs
+          node --check production-qa/live-release.browser.spec.mjs
+          cat > production-live.config.mjs <<'CONFIG'
+          import config from './production-qa.config.mjs';
+          export default { ...config, testMatch: ['*.browser.spec.mjs', 'browser.spec.mjs'], testIgnore: '**/evidence/**' };
+          CONFIG
+      - name: Live Chromium - normal mobile and desktop, daily path, two tabs, legacy course
+        id: chromium
+        run: npx playwright test --config production-live.config.mjs
+      - name: Live Firefox - personal storage, conflicts, normal mobile and desktop
+        if: ${{ !cancelled() && steps.chromium.outcome != 'skipped' }}
+        env:
+          PW_BROWSER: firefox
+          PW_OUTPUT_DIR: production-results-firefox
+          PW_HTML_DIR: production-report-firefox
+          PW_JSON_FILE: production-qa/evidence/firefox-results.json
+        run: npx playwright test --config production-live.config.mjs personal-path.browser.spec.mjs live-release.browser.spec.mjs
+      - name: Preserve production evidence, screenshots and test sources
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: pr17-live-production-evidence-${{ github.sha }}
+          retention-days: 7
+          if-no-files-found: warn
+          path: |
+            react-preview/production-qa/
+            react-preview/production-live.config.mjs
+            react-preview/production-qa.config.mjs
+            react-preview/production-results-chromium/
+            react-preview/production-results-firefox/
+            react-preview/production-report-chromium/
+            react-preview/production-report-firefox/
+            react-preview/scripts/prepare-pr17-production-qa.mjs
