@@ -54,12 +54,28 @@ await writeFile('production-qa/evidence/identity.json', JSON.stringify(identity,
 await writeFile('production-qa/evidence/published-index.html', html);
 console.log('PUBLIC_IDENTITY', JSON.stringify(identity));
 
-// Reuse the reviewed acceptance assertions against the actual public origin.
-// The only adaptation is absolute-root navigation -> repository-relative navigation.
-// No app code, network response, DOM or successful save is substituted.
+// Adapt only navigation arguments, never arbitrary slash-prefixed strings.
+// In particular, '/2' is a lesson-screen suffix and must remain exactly '/2'.
+function adaptNavigation(source) {
+  const adapted = source.replace(/\.goto\((['"\x60])\//g, '.goto($1./')
+    .replace("${english ? '/?lang=en' : '/'}", "${english ? './?lang=en' : './'}");
+  const before = source.split('\n');
+  const after = adapted.split('\n');
+  if (before.length !== after.length || before.some((line, index) => line !== after[index] && !line.includes('.goto('))) {
+    throw new Error('The live-origin adapter must not modify assertions, fixtures, hash suffixes or non-navigation lines');
+  }
+  return adapted;
+}
+const adapterProbe = "await page.goto('/?lang=en#today'); const suffix = '/2';";
+if (adaptNavigation(adapterProbe) !== "await page.goto('./?lang=en#today'); const suffix = '/2';") {
+  throw new Error('Navigation adapter regression: lesson suffix changed');
+}
+
+// Reuse reviewed assertions against the actual public origin. No app code,
+// network response, DOM, successful save or route fragment is substituted.
 for (const name of ['personal-path.browser.spec.mjs', 'home-action.browser.spec.mjs', 'browser.spec.mjs', 'answer-next-step.browser.spec.mjs']) {
   const source = await readFile(`tests/${name}`, 'utf8');
-  const adapted = source.replace(/(['"\x60])\//g, '$1./');
+  const adapted = adaptNavigation(source);
   await writeFile(`production-qa/${name}`, adapted);
   await copyFile(`tests/${name}`, `production-qa/evidence/source-${name}`);
 }
