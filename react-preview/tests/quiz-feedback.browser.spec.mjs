@@ -100,7 +100,7 @@ for (const lang of ['ru', 'en']) {
       await check.click();
       const status = page.locator('.feedback.retry');
       await expect(status).toHaveAttribute('role', 'status');
-      await expect(status).toContainText(lesson.quiz.explanation);
+      await expect(status).toContainText(['lesson', 'practice'].includes(mode) ? lesson.quiz.explanation : lesson.principle);
       await expect(status.getByTestId('answer-feedback-title')).toHaveText(['lesson', 'practice'].includes(mode)
         ? lang === 'ru' ? 'Хорошая попытка. Посмотрим ещё раз.' : 'Good try. Let’s look again.'
         : lang === 'ru' ? 'Попробуем другой ответ.' : 'Let’s try another answer.');
