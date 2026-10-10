@@ -18,6 +18,7 @@ for (const width of [320, 390, 768, 1280]) {
     await page.goto('/');
     const companion = page.locator('.hero [data-testid=lumi-companion]');
     await expect(companion).toContainText('Луми');
+    await expect(companion).toContainText('Учимся говорить о потребностях.');
     const video = companion.getByTestId('lumi-welcome-video');
     await expect(video).toBeVisible();
     await expect(video).toHaveAttribute('aria-hidden', 'true');
@@ -44,7 +45,7 @@ for (const width of [320, 390, 768, 1280]) {
     await page.screenshot({ path: info.outputPath(`lumi-path-ru-${width}.png`), fullPage: true });
     await page.getByRole('button', { name: 'Switch to English' }).click();
     await expect(companion).toContainText('Lumi');
-    await expect(companion).toContainText('at your own pace');
+    await expect(companion).toContainText('Learn to express your needs.');
     await expect(companion.getByTestId('lumi-welcome-toggle')).toHaveAccessibleName('Play Lumi greeting');
     expect(await raw(page)).toBe(before); // Rendering and localization are read-only.
     await fits(page);
@@ -219,7 +220,7 @@ test('missing greeting and portrait assets do not remove localized guidance or b
   await page.route(/\.(webm|mp4|jpg|webp)(?:\?.*)?$/, (route) => route.abort());
   await page.goto('/');
   const companion = page.locator('.hero [data-testid=lumi-companion]');
-  await expect(companion).toContainText('Один маленький шаг');
+  await expect(companion).toContainText('Учимся говорить о потребностях.');
   await expect(companion.locator('img')).toHaveCount(0);
   await expect(companion.locator('.lumi-fallback')).toBeVisible();
   await page.getByTestId('resume').click();
@@ -236,7 +237,7 @@ test('a failed greeting falls back to the portrait and leaves lesson navigation 
   await expect(companion.getByTestId('lumi-welcome-toggle')).toHaveCount(0);
   await expect(companion.locator('[data-lumi-mood=idle]')).toBeVisible();
   await expect.poll(() => companion.locator('img').evaluate((image) => image.complete && image.naturalWidth === 576)).toBe(true);
-  await expect(companion).toContainText('One small step');
+  await expect(companion).toContainText('Learn to express your needs.');
   const before = await raw(page);
   await page.getByTestId('resume').click();
   await expect(page).toHaveURL(/#lesson\//);
@@ -248,7 +249,7 @@ test('a failed greeting falls back to the portrait and leaves lesson navigation 
 
 test('current navigation has one semantic marker across learning and mission routes', async ({ page }) => {
   for (const [hash, label] of [
-    ['path', 'Маршрут'], ['start', 'Маршрут'], ['guided/needs', 'Маршрут'],
+    ['path', 'Маршрут'], ['today', 'Маршрут'], ['start', 'Маршрут'], ['guided/needs', 'Маршрут'],
     ['lesson/map-1', 'Маршрут'], ['practice/map-1', 'Маршрут'], ['review', 'Маршрут'],
     [`mission/${missions[0].id}`, 'В жизни'], ['progress', 'Прогресс'],
   ]) {

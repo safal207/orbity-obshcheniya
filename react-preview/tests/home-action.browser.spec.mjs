@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 const KEY = 'orbity-dialoga-progress-v1';
 const HAPTICS = 'orbity-haptics-v1';
 const read = (page) => page.evaluate(({ KEY, HAPTICS }) => ({
-  progress: localStorage.getItem(KEY), haptics: localStorage.getItem(HAPTICS),
+  progress: localStorage.getItem(KEY), haptics: localStorage.getItem(HAPTICS), personal: localStorage.getItem('orbity-personal-path-v1'),
 }), { KEY, HAPTICS });
 const empty = () => ({ completed: {}, answers: {}, notes: {}, review: {}, missionSteps: {},
   focusModule: null, currentLessonId: null, guidedFlow: null });
@@ -14,7 +14,7 @@ for (const lang of ['ru', 'en']) {
       await page.setViewportSize({ width, height });
       await page.emulateMedia({ reducedMotion: 'reduce' });
       await page.goto(`/?lang=${lang}`);
-      const help = page.getByTestId('help-now');
+      const help = page.getByTestId('daily-start');
       await expect(help).toBeEnabled();
       await expect(page.getByTestId('resume')).toHaveAccessibleName(lang === 'ru' ? /Начать первый урок/ : /Start your first lesson/);
       const before = await read(page);
@@ -39,9 +39,8 @@ for (const lang of ['ru', 'en']) {
       // A real click at its initial coordinates cannot silently scroll a covered control into view.
       const box = await help.boundingBox();
       await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-      await expect(page).toHaveURL(/#now$/);
-      await page.locator('.quick-help-choice').first().click();
-      await expect(page.getByTestId('quick-help-phrase')).toBeVisible();
+      await expect(page).toHaveURL(/#today$/);
+      await expect(page.getByTestId('daily-profile')).toBeVisible();
       expect(await read(page)).toEqual(before);
       await page.getByRole('button', { name: lang === 'ru' ? 'Маршрут' : 'Learn', exact: true }).click();
       await expect(page.getByTestId('lumi-route-tip')).toBeVisible();
@@ -52,6 +51,16 @@ for (const lang of ['ru', 'en']) {
       expect(await read(page)).toEqual(before);
     });
   }
+
+  test(`home ${lang}: immediate help remains available independently of the daily path`, async ({ page }) => {
+    await page.goto(`/?lang=${lang}`);
+    const before = await read(page);
+    await page.getByTestId('help-now').click();
+    await expect(page).toHaveURL(/#now$/);
+    await page.locator('.quick-help-choice').first().click();
+    await expect(page.getByTestId('quick-help-phrase')).toBeVisible();
+    expect(await read(page)).toEqual(before);
+  });
 
   test(`home ${lang}: first lesson remains available from a fresh start`, async ({ page }) => {
     await page.goto(`/?lang=${lang}`);
