@@ -8,6 +8,7 @@ import { learningRoute, resumeTarget, nextLesson } from './navigation.mjs';
 import { TopicPicker, Guided } from './guided.jsx';
 import { Review } from './review.jsx';
 import { ResultDetails } from './result-details.jsx';
+import { AnswerFeedback, useAnswerError } from './answer-feedback.jsx';
 import { QuickHelp } from './quick-help.jsx';
 import './style.css';
 import './lumi.css';
@@ -299,7 +300,7 @@ function App() {
       </header>
       <main id="main-content" tabIndex={-1}>
         <HapticsSettings t={t}/>
-        {error && <div className="alert" role="alert"><LumiPortrait mood="support"/><p>{explain(error)}</p><button className="secondary" onClick={refresh}>{t('Проверить снова', 'Check again')}</button><button className="secondary" onClick={() => go('progress')}>{t('Резервная копия', 'Backup')}</button></div>}
+        {error && <div className="alert" role="alert" tabIndex={-1}><LumiPortrait mood="support"/><p>{explain(error)}</p><button className="secondary" onClick={refresh}>{t('Проверить снова', 'Check again')}</button><button className="secondary" onClick={() => go('progress')}>{t('Резервная копия', 'Backup')}</button></div>}
         {notice && <p className="notice" role="status">{notice}</p>}
         {route.view !== 'path' && routeGreeting}
         {!loaded ? <p role="status">{t('Читаем ваш прогресс…', 'Reading your progress…')}</p> : <>
@@ -395,6 +396,7 @@ function MissionDetail({ mission, state, pending, t, write, go }) {
   </section>;
 }
 function Lesson({ lesson, mode, step, state, pending, t, write, notePanel, go }) {
+  const revealAnswerError = useAnswerError();
   const needsStart = mode === 'lesson' && step === 2 && !hasLessonStart(state, lesson.id);
   const [choice, setChoice] = useState(null);
   const [feedback, setFeedback] = useState(null);
@@ -407,7 +409,7 @@ function Lesson({ lesson, mode, step, state, pending, t, write, notePanel, go })
     if (await write(() => store.answer(lesson.id, choice, storeMode))) {
       setFeedback('done');
       vibrateOnSavedProgress('milestone');
-    }
+    } else revealAnswerError();
   }
   return <section className="lesson-screen"><div className="lesson-top"><button className="secondary" onClick={() => go('path')}>← {t('К маршруту', 'Back to path')}</button><span>{mode === 'practice' ? t('ПРАКТИКА', 'PRACTICE') : `${t('ШАГ', 'STEP')} ${step + 1}/3`}</span></div>
     <progress value={needsStart ? 0 : feedback === 'done' ? 3 : step + 1} max={3} aria-label={t('Шаг урока', 'Lesson step')}/>
@@ -419,8 +421,11 @@ function Lesson({ lesson, mode, step, state, pending, t, write, notePanel, go })
         <button className="primary" disabled={!state || !!pending} onClick={() => go(`lesson/${lesson.id}`)}>{t('Начать урок с первого шага', 'Start this lesson from step one')}</button>
       </section>}
       {step === 2 && !needsStart && <><h2 id="quiz-prompt">{lesson.quiz.prompt}</h2><div className="choices" role="group" aria-labelledby="quiz-prompt">{lesson.quiz.choices.map((text, i) => <button key={i} className={`choice ${choice === i ? 'selected' : ''}`} aria-pressed={choice === i} disabled={!!pending || feedback === 'done'} onClick={() => { setChoice(i); setFeedback(null); }}><span className="choice-number" aria-hidden="true">{i + 1}</span>{text}</button>)}</div>
-        {feedback === 'retry' && <div className="feedback retry" role="status"><LumiPortrait mood="support"/><strong>{t('Хорошая попытка. Посмотрим ещё раз.', 'Good try. Let’s look again.')}</strong><p>{lesson.quiz.explanation}</p></div>}
-        {feedback === 'done' ? <div className="feedback success" role="status"><LumiAnimation t={t} mood="success"/><h2>{mode === 'practice' ? t('Практика сохранена!', 'Practice saved!') : t('Урок завершён!', 'Lesson complete!')}</h2><p>{lesson.quiz.explanation}</p><ResultDetails lesson={lesson} t={t} notePanel={notePanel}/><p>{mode === 'practice' ? t('Практика не отмечает новый урок завершённым и не добавляет XP.', 'Practice does not complete a new lesson or award XP.') : t('20 XP за первое завершение. Повторы не начисляют опыт снова.', '20 XP for the first completion. Replays do not add more experience.')}</p><button className="primary" onClick={() => go('path')}>{t('Вернуться к маршруту', 'Return to the path')} →</button></div> : <div className="button-row">{mode !== 'practice' && <button className="secondary" disabled={!!pending} onClick={() => setStep(1)}>{t('Назад', 'Back')}</button>}<button className="primary" disabled={choice === null || !!pending || !state} onClick={check}>{pending ? t('Сохраняем…', 'Saving…') : t('Проверить ответ', 'Check answer')}</button></div>}
+        {feedback === 'retry' && <AnswerFeedback kind="retry" t={t} title={t('Хорошая попытка. Посмотрим ещё раз.', 'Good try. Let’s look again.')} explanation={lesson.quiz.explanation} actionLabel={t('Выбрать другой ответ', 'Choose another answer')} onAction={() => { setChoice(null); setFeedback(null); }}/> }
+        {feedback === 'done' && <AnswerFeedback kind="success" t={t} title={mode === 'practice' ? t('Практика сохранена!', 'Practice saved!') : t('Урок завершён!', 'Lesson complete!')} explanation={lesson.quiz.explanation} actionLabel={t('Вернуться к маршруту', 'Return to the path')} onAction={() => go('path')} disabled={!!pending}>
+          <ResultDetails lesson={lesson} t={t} notePanel={notePanel}/><p>{mode === 'practice' ? t('Практика не отмечает новый урок завершённым и не добавляет XP.', 'Practice does not complete a new lesson or award XP.') : t('20 XP за первое завершение. Повторы не начисляют опыт снова.', '20 XP for the first completion. Replays do not add more experience.')}</p>
+        </AnswerFeedback>}
+        {!feedback && <div className="button-row">{mode !== 'practice' && <button className="secondary" disabled={!!pending} onClick={() => setStep(1)}>{t('Назад', 'Back')}</button>}<button className="primary" disabled={choice === null || !!pending || !state} onClick={check}>{pending ? t('Сохраняем…', 'Saving…') : t('Проверить ответ', 'Check answer')}</button></div>}
       </>}
     </article></section>;
 }

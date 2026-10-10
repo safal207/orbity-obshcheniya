@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { GUIDED, answerGuided, nextLesson } from './navigation.mjs';
-import { Lumi, LumiPortrait, LumiAnimation } from './lumi.jsx';
+import { Lumi, LumiAnimation } from './lumi.jsx';
+import { AnswerFeedback, useAnswerError } from './answer-feedback.jsx';
 import { vibrateOnSavedProgress } from './haptics.mjs';
 
 export function TopicPicker({ state, pending, t, start }) {
@@ -23,6 +24,7 @@ export function TopicPicker({ state, pending, t, start }) {
 }
 
 export function Guided({ topic, state, course, store, pending, t, write, notePanel, go, onSync }) {
+  const revealAnswerError = useAnswerError();
   const active = state?.guidedFlow;
   const [step, setStep] = useState(active?.topic === topic ? active.step : 0);
   const [choice, setChoice] = useState(null);
@@ -47,7 +49,7 @@ export function Guided({ topic, state, course, store, pending, t, write, notePan
     if (ok) {
       setFeedback('done');
       vibrateOnSavedProgress(step === ids.length - 1 ? 'milestone' : 'step');
-    }
+    } else revealAnswerError();
     setSaving(false);
   }
   async function copy() {
@@ -76,11 +78,11 @@ export function Guided({ topic, state, course, store, pending, t, write, notePan
     <progress value={feedback === 'done' ? step + 1 : step} max={3} aria-label={t('Вопросы знакомства', 'Introduction questions')}/>
     <article className="lesson-card"><span className="eyebrow">{lesson.title}</span><h1 id="page-title" tabIndex={-1}>{lesson.quiz.prompt}</h1>
       <div className="choices" role="group" aria-label={t('Варианты ответа', 'Answer choices')}>{lesson.quiz.choices.map((text, i) => <button key={i} className={`choice ${choice === i ? 'selected' : ''}`} aria-pressed={choice === i} disabled={!!pending || saving || feedback === 'done'} onClick={() => { setChoice(i); setFeedback(null); }}><span className="choice-number" aria-hidden="true">{i + 1}</span>{text}</button>)}</div>
-      {feedback === 'retry' && <div className="feedback retry" role="status"><LumiPortrait mood="support"/><strong>{t('Попробуем другой ответ.', 'Let’s try another answer.')}</strong><p>{lesson.principle}</p></div>}
-      {feedback === 'done' ? <div className="feedback success" role="status"><LumiAnimation t={t} mood="success"/><h2>{t('Да, так будет понятнее.', 'Yes, that makes it clearer.')}</h2><p>{lesson.quiz.explanation}</p>
+      {feedback === 'retry' && <AnswerFeedback kind="retry" t={t} title={t('Попробуем другой ответ.', 'Let’s try another answer.')} explanation={lesson.principle} actionLabel={t('Выбрать другой ответ', 'Choose another answer')} onAction={() => { setChoice(null); setFeedback(null); }}/>}
+      {feedback === 'done' && <AnswerFeedback kind="success" t={t} title={t('Да, так будет понятнее.', 'Yes, that makes it clearer.')} explanation={lesson.quiz.explanation} actionLabel={step < 2 ? t('Следующий вопрос', 'Next question') : t('Посмотреть результат', 'See the result')} onAction={sync} disabled={!!pending || saving}>
         <details><summary>{t('Пример и своя заметка', 'Example and your reflection')}</summary><blockquote>{lesson.example}</blockquote><button className="secondary" onClick={copy}>{t('Скопировать пример', 'Copy example')}</button>{copyState && <p role="status">{copyState === 'copied' ? t('Пример скопирован.', 'Example copied.') : t('Не удалось скопировать. Выделите текст вручную.', 'Could not copy. Select the text manually.')}</p>}{notePanel(lesson.id)}</details>
         <p className="muted">{t('Вопрос сохранён. Полные уроки не отмечены; XP не изменились.', 'Question saved. Full lessons are not marked complete; XP is unchanged.')}</p>
-        <button className="primary" onClick={sync}>{step < 2 ? t('Следующий вопрос', 'Next question') : t('Посмотреть результат', 'See the result')}</button>
-      </div> : <button className="primary" disabled={choice === null || !!pending || saving || !state} onClick={check}>{pending || saving ? t('Сохраняем…', 'Saving…') : t('Проверить ответ', 'Check answer')}</button>}
+      </AnswerFeedback>}
+      {!feedback && <button className="primary" disabled={choice === null || !!pending || saving || !state} onClick={check}>{pending || saving ? t('Сохраняем…', 'Saving…') : t('Проверить ответ', 'Check answer')}</button>}
     </article></section>;
 }

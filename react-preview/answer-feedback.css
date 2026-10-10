@@ -1,0 +1,7 @@
+/* Keep the result and its action together before the optional reflection. */
+.feedback.answer-feedback h2{margin:0 0 16px;scroll-margin-top:24px;line-height:1.25}
+.answer-feedback-action{display:block;width:100%;margin:0 0 20px;white-space:normal}
+.answer-feedback .answer-explanation{margin-top:0}
+.answer-feedback>details,.answer-feedback>.result-details{clear:both}
+.choices{scroll-margin-top:24px}
+.alert[role="alert"]{scroll-margin-top:24px}
