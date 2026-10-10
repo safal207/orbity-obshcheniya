@@ -11,6 +11,7 @@ const fail = (code) => { throw Object.assign(new Error(code), { code }); };
 
 export function learningRoute(hash, lessons, missions = []) {
   const parts = hash.replace(/^#/, '').split('/');
+  if (parts[0] === 'today') return { view: 'today', id: null };
   if (parts[0] === 'now') return { view: 'now', id: null, scenarioId: QUICK_HELP.has(parts[1]) ? parts[1] : null };
   if (parts[0] === 'start') return { view: 'start', id: null };
   if (parts[0] === 'guided' && (parts.length === 1 || Object.hasOwn(GUIDED, parts[1]) || /^[0-2]$/.test(parts[1]))) {

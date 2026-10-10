@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { reviewQueue, answerReview } from './review.mjs';
 import { ResultDetails } from './result-details.jsx';
-import { LumiPortrait, LumiAnimation } from './lumi.jsx';
+import { LumiAnimation } from './lumi.jsx';
+import { AnswerFeedback, useAnswerError } from './answer-feedback.jsx';
 import { vibrateOnSavedProgress } from './haptics.mjs';
 
 export function Review({ state, course, store, pending, t, write, notePanel, go, onSync }) {
+  const revealAnswerError = useAnswerError();
   const [queue, setQueue] = useState(() => reviewQueue(state, course.lessons));
   const [position, setPosition] = useState(0);
   const [choice, setChoice] = useState(null);
@@ -31,7 +33,7 @@ export function Review({ state, course, store, pending, t, write, notePanel, go,
     if (await write(() => answerReview(store, lesson, choice))) {
       setFeedback('done');
       vibrateOnSavedProgress(position === queue.length - 1 ? 'milestone' : 'step');
-    }
+    } else revealAnswerError();
     setSaving(false);
   }
 
@@ -65,12 +67,12 @@ export function Review({ state, course, store, pending, t, write, notePanel, go,
     <progress value={feedback === 'done' ? position + 1 : position} max={queue.length} aria-label={t('Вопросы повторения', 'Review questions')}/>
     <article className="lesson-card"><span className="eyebrow">{lesson.title}</span><h1 id="page-title" tabIndex={-1}>{lesson.quiz.prompt}</h1>
       <div className="choices" role="group" aria-label={t('Варианты ответа', 'Answer choices')}>{lesson.quiz.choices.map((text, index) => <button key={index} className={`choice ${choice === index ? 'selected' : ''}`} aria-pressed={choice === index} disabled={!!pending || saving || feedback === 'done'} onClick={() => { setChoice(index); setFeedback(null); }}><span className="choice-number" aria-hidden="true">{index + 1}</span>{text}</button>)}</div>
-      {feedback === 'retry' && <div className="feedback retry" role="status"><LumiPortrait mood="support"/><strong>{t('Попробуем другой ответ.', 'Let’s try another answer.')}</strong><p>{lesson.principle}</p></div>}
-      {feedback === 'done' ? <div className="feedback success" role="status"><LumiAnimation t={t} mood="success"/><h2>{t('Повторение сохранено!', 'Review saved!')}</h2><p>{lesson.quiz.explanation}</p>
+      {feedback === 'retry' && <AnswerFeedback kind="retry" t={t} title={t('Попробуем другой ответ.', 'Let’s try another answer.')} explanation={lesson.principle} actionLabel={t('Выбрать другой ответ', 'Choose another answer')} onAction={() => { setChoice(null); setFeedback(null); }}/>}
+      {feedback === 'done' && <AnswerFeedback kind="success" t={t} title={t('Повторение сохранено!', 'Review saved!')} explanation={lesson.quiz.explanation} actionLabel={position + 1 < queue.length ? t('Следующий вопрос', 'Next question') : t('Посмотреть результат', 'See the result')} onAction={next} disabled={!!pending || saving}>
         <ResultDetails key={lesson.id} lesson={lesson} t={t} notePanel={notePanel}/>
         <p className="muted">{t('Следующее повторение — через три дня. XP не изменились.', 'Next review is in three days. XP is unchanged.')}</p>
-        <button className="primary" disabled={!!pending || saving} onClick={next}>{position + 1 < queue.length ? t('Следующий вопрос', 'Next question') : t('Посмотреть результат', 'See the result')} →</button>
-      </div> : <button className="primary" disabled={choice === null || !!pending || saving} onClick={check}>{pending || saving ? t('Сохраняем…', 'Saving…') : t('Проверить ответ', 'Check answer')}</button>}
+      </AnswerFeedback>}
+      {!feedback && <button className="primary" disabled={choice === null || !!pending || saving} onClick={check}>{pending || saving ? t('Сохраняем…', 'Saving…') : t('Проверить ответ', 'Check answer')}</button>}
     </article>
   </section>;
 }

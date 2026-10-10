@@ -35,12 +35,12 @@ jobs:
           node scripts/verify-build.mjs
       - name: Real-browser acceptance (Chromium)
         run: npm run test:browser
-      - name: Guided-resume and quiz-feedback acceptance (Firefox)
+      - name: Guided, answer and personal-path acceptance (Firefox)
         env:
           PW_BROWSER: firefox
           PW_OUTPUT_DIR: test-results-firefox
           PW_HTML_DIR: playwright-report-firefox
-        run: npx playwright test tests/guided-restart.browser.spec.mjs tests/quiz-feedback.browser.spec.mjs
+        run: npx playwright test tests/guided-restart.browser.spec.mjs tests/answer-next-step.browser.spec.mjs tests/personal-path.browser.spec.mjs tests/quiz-feedback.browser.spec.mjs
       - name: Export accepted React website
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:

@@ -23,6 +23,7 @@ test('lesson URL preserves only a valid screen; practice remains independent', (
   assert.deepEqual(learningRoute('#lesson/missing/2', lessons), { view: 'path', id: null });
 });
 test('legacy section links resolve to equivalent React destinations without progress claims', () => {
+  assert.deepEqual(learningRoute('#today', lessons), { view: 'today', id: null });
   assert.deepEqual(learningRoute('#review', lessons), { view: 'review', id: null });
   assert.deepEqual(learningRoute('#practice', lessons), { view: 'review', id: null });
   assert.deepEqual(learningRoute('#about', lessons), { view: 'about', id: null });

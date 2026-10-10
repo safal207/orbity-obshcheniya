@@ -3,8 +3,10 @@ import AxeBuilder from '@axe-core/playwright';
 import { readFileSync } from 'node:fs';
 
 const KEY = 'orbity-dialoga-progress-v1';
+/** Load the exact shared course bytes without changing legacy ESM boundaries. */
 const loadCourse = async (file) => import(`data:text/javascript;base64,${Buffer.from(readFileSync(new URL(file, import.meta.url), 'utf8')).toString('base64')}`);
 const courses = { ru: await loadCourse('../../dist/course.js'), en: await loadCourse('../../dist/course.en.js') };
+/** Read committed course bytes directly, independently of React state. */
 const raw = (page) => page.evaluate((key) => localStorage.getItem(key), KEY);
 const neutral = 'rgb(239, 234, 255)';
 const retry = 'rgb(255, 240, 215)';
@@ -16,8 +18,9 @@ const fixture = {
   focusModule: 'map', currentLessonId: null, guidedFlow: null,
 };
 
+/** Open one quiz mode with a saved note/mission fixture on a small phone. */
 async function openQuiz(page, lang, mode) {
-  await page.setViewportSize({ width: 320, height: 900 });
+  await page.setViewportSize({ width: 320, height: 640 });
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto(`/?lang=${lang}#progress`);
   await page.evaluate(({ key, state }) => localStorage.setItem(key, JSON.stringify(state)), { key: KEY, state: fixture });
@@ -39,10 +42,35 @@ async function openQuiz(page, lang, mode) {
   const lesson = courses[lang].lessons.find((item) => item.id === id);
   return { lesson, choices: page.locator('.choices .choice'), check: page.getByRole('button', { name: lang === 'ru' ? 'Проверить ответ' : 'Check answer', exact: true }) };
 }
+/** Assert page width and the existing serious/critical Axe guardrail. */
 async function accessibleAndFits(page) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   const violations = (await new AxeBuilder({ page }).analyze()).violations;
   expect(violations.filter((item) => ['serious', 'critical'].includes(item.impact))).toEqual([]);
+}
+
+/** Check the natural post-answer viewport before any hover or auto-scrolling click. */
+async function feedbackActionInView(page) {
+  await expect(page.getByTestId('answer-feedback-title')).toBeFocused();
+  const action = page.getByTestId('answer-feedback-action');
+  await expect(action).toBeEnabled();
+  const box = await action.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    const heading = document.querySelector('[data-testid="answer-feedback-title"]').getBoundingClientRect();
+    const nav = document.querySelector('.sidebar nav');
+    const limit = nav && getComputedStyle(nav).position === 'fixed' ? nav.getBoundingClientRect().top : innerHeight;
+    const hit = document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2);
+    return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom,
+      headingTop: heading.top, headingBottom: heading.bottom, width: innerWidth, limit,
+      reachable: element === hit || element.contains(hit) };
+  });
+  expect(box.headingTop).toBeGreaterThanOrEqual(0);
+  expect(box.headingBottom).toBeLessThanOrEqual(box.limit);
+  expect(box.left).toBeGreaterThanOrEqual(0);
+  expect(box.right).toBeLessThanOrEqual(box.width);
+  expect(box.top).toBeGreaterThanOrEqual(0);
+  expect(box.bottom).toBeLessThanOrEqual(box.limit);
+  expect(box.reachable).toBe(true);
 }
 
 for (const lang of ['ru', 'en']) {
@@ -72,10 +100,12 @@ for (const lang of ['ru', 'en']) {
       await check.click();
       const status = page.locator('.feedback.retry');
       await expect(status).toHaveAttribute('role', 'status');
-      await expect(status).toContainText(['lesson', 'practice'].includes(mode) ? lesson.quiz.explanation : lesson.principle);
-      await expect(status.locator('strong')).toHaveText(['lesson', 'practice'].includes(mode)
+      await expect(status).toContainText(lesson.quiz.explanation);
+      await expect(status.getByTestId('answer-feedback-title')).toHaveText(['lesson', 'practice'].includes(mode)
         ? lang === 'ru' ? 'Хорошая попытка. Посмотрим ещё раз.' : 'Good try. Let’s look again.'
         : lang === 'ru' ? 'Попробуем другой ответ.' : 'Let’s try another answer.');
+      await feedbackActionInView(page);
+      await page.screenshot({ path: info.outputPath(`quiz-retry-action-${mode}-${lang}-320.png`) });
       await wrong.hover();
       await expect(wrong).toHaveCSS('background-color', retry);
       await expect(wrong).toHaveCSS('border-top-style', 'dashed');
@@ -85,6 +115,12 @@ for (const lang of ['ru', 'en']) {
       await accessibleAndFits(page);
       await page.screenshot({ path: info.outputPath(`quiz-wrong-${mode}-${lang}-320.png`), fullPage: true });
 
+      // Keep PR #16's explicit retry and focus restoration, not the removed <strong> layout.
+      await status.getByTestId('answer-feedback-action').click();
+      await expect(choices.first()).toBeFocused();
+      await expect(page.locator('.choice[aria-pressed="true"]')).toHaveCount(0);
+      await expect(check).toBeDisabled();
+      expect(await raw(page)).toBe(before); expect(await raw(other)).toBe(before);
       await right.click();
       await expect(status).toHaveCount(0);
       await expect(wrong).toHaveAttribute('aria-pressed', 'false');
@@ -115,6 +151,8 @@ for (const lang of ['ru', 'en']) {
       await page.evaluate(() => window.restoreQuizStorage());
       await check.click();
       await expect(page.locator('.feedback.success')).toBeVisible();
+      await feedbackActionInView(page);
+      await page.screenshot({ path: info.outputPath(`quiz-success-action-${mode}-${lang}-320.png`) });
       await expect(right).toHaveCSS('background-color', success);
       await expect(right).toHaveCSS('opacity', '1');
       await expect(right).toBeDisabled();

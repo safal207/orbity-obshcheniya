@@ -1,0 +1,108 @@
+.personal-path{max-width:850px;margin:0 auto;overflow-wrap:anywhere}
+.personal-path h1{font-size:clamp(1.85rem,4vw,3rem);scroll-margin-top:24px;margin-bottom:18px}
+.personal-heading{margin-bottom:24px}
+.personal-eyebrow{display:block;color:#536257;font-size:.74rem;font-weight:900;letter-spacing:.07em;text-transform:uppercase;margin-bottom:14px}
+.personal-progress{margin-top:20px}
+.personal-progress-dots{display:flex;gap:8px;max-width:380px}
+.personal-progress-dots>span{width:36px;height:36px;display:grid;place-items:center;flex:0 1 36px;border:1px solid #ced8c4;border-radius:50%;color:#536257;background:#fffef9;font-size:.82rem;font-weight:800}
+.personal-progress-dots .complete{background:#36543b;color:#fff;border-color:#36543b}
+.personal-progress-dots .current{border:2px solid #6d623c;background:#fbefc5;color:#493f24}
+.personal-progress>p{font-size:.8rem;color:#536257;margin:12px 0 0}
+.personal-progress>p span{display:inline}
+.personal-card{padding:28px;background:#fffef9;border:1px solid #dce4d4;border-radius:24px;margin:20px 0;min-width:0}
+.personal-card h2{font-size:clamp(1.25rem,2.6vw,1.6rem);line-height:1.25}
+.personal-card p:last-child{margin-bottom:0}
+.personal-lumi{display:flex;align-items:center;gap:16px;margin-bottom:24px;min-width:0}
+.personal-lumi .lumi-portrait{flex:0 0 88px;width:88px;height:88px;max-width:88px;margin:0}
+.personal-lumi p{margin:0;font-weight:700;line-height:1.5}
+.personal-session-lumi{background:#eaf0dd;border-radius:22px;padding:14px 20px;margin-bottom:12px}
+.personal-session-meta{font-size:.85rem;color:#536257;margin-bottom:20px}
+.personal-cycle{padding-left:24px;margin:20px 0}
+.personal-cycle li{padding:4px 0 6px 4px}
+.personal-muted,.personal-hint{font-size:.84rem;color:#536257;line-height:1.6}
+.personal-path fieldset{border:0;padding:0;margin:0;min-width:0}
+.personal-path legend{font-weight:800;padding:0;margin-bottom:12px;max-width:100%;line-height:1.5}
+.personal-addresses{display:flex;flex-wrap:wrap;gap:10px;margin:12px 0}
+.personal-addresses button{flex:1 1 120px;padding:12px 14px;min-height:48px;background:#fffef9;border:2px solid #d7e0cc;border-radius:14px;color:#263b31;font-weight:800}
+.personal-addresses button.selected{border-color:#516e36;background:#e6f1cf}
+.personal-baseline{margin:28px 0!important}
+.personal-scale{display:flex;flex-wrap:wrap;gap:10px;max-width:420px}
+.personal-scale label{position:relative;display:flex;align-items:center;justify-content:center;gap:6px;min-width:44px;min-height:48px;flex:1;border:2px solid #d7e0cc;border-radius:12px;cursor:pointer;font-weight:800}
+.personal-scale label.selected{background:#e6f1cf;border-color:#516e36}
+.personal-scale input{margin:0;accent-color:#36543b;width:16px;height:16px}
+.personal-scale-labels{display:flex;justify-content:space-between;gap:12px;max-width:420px;margin:8px 0;font-size:.76rem;color:#536257}
+.personal-local-note{font-size:.82rem;color:#536257;padding:16px;background:#f0f2e9;border-radius:14px;margin:24px 0 20px}
+.personal-path .primary,.personal-path .secondary{min-height:48px;white-space:normal;line-height:1.45;max-width:100%;text-align:center;justify-content:center}
+.personal-path .primary{width:100%;margin-top:8px;padding:14px 18px}
+.personal-path .secondary{padding:11px 16px}
+.personal-text-button{border:0;background:transparent;color:#36543b;text-decoration:underline;text-underline-offset:3px;min-height:44px;padding:10px 8px;line-height:1.5;font-weight:700}
+.personal-step{display:block;font-size:.78rem;font-weight:900;color:#596646;letter-spacing:.04em;margin-bottom:14px}
+.personal-principle{padding:18px;background:#f0f3e7;border-radius:16px}
+.personal-example-phrase{margin-top:20px;border-left:4px solid #baa6dc;padding:0 0 0 18px}
+.personal-example-phrase>span{font-size:.73rem;font-weight:900;color:#675581;text-transform:uppercase;letter-spacing:.06em}
+.personal-example-phrase blockquote{border:0;padding:0;margin:8px 0 0;color:#354838;line-height:1.65}
+.personal-field{display:block;font-weight:800;margin:22px 0 10px}
+.personal-field-title{font-size:1.2rem;line-height:1.35;margin-top:0}
+.personal-path textarea{min-height:105px;display:block;background:#fcfdf9;color:#263b31;line-height:1.65;font-size:1rem;max-width:100%}
+.personal-practice #daily-phrase{min-height:164px}
+.personal-hint{margin:9px 0 20px}
+.personal-self-check{padding:18px 20px;background:#eef1f9;border-radius:16px;margin:24px 0}
+.personal-self-check h3{font-size:.95rem;color:#444960;letter-spacing:0}
+.personal-self-check ul{padding-left:20px;margin:12px 0}
+.personal-self-check li{padding:3px 0}
+.personal-self-check p{font-size:.81rem;color:#555b6e;margin-bottom:0}
+.personal-written{white-space:pre-wrap;overflow-wrap:anywhere;user-select:text;color:#263b31}
+.personal-done{border:2px solid #c3d99f;background:#f4f8e9}
+.personal-done>blockquote{margin:16px 0 22px;border-left-color:#7c9557;font-size:1.15rem;line-height:1.65}
+.personal-plan{margin:16px 0 24px}
+.personal-plan>strong{font-size:.85rem}
+.personal-plan p{margin:8px 0 0}
+.personal-tomorrow{margin:26px 0;padding:20px;border-radius:16px;background:#fffef9}
+.personal-tomorrow h3{margin-bottom:10px}
+.personal-tomorrow p{font-size:.9rem}
+.personal-tomorrow p:last-child{font-size:.83rem;color:#536257}
+.personal-outcomes{display:grid;gap:10px;margin:14px 0 18px}
+.personal-outcomes label{display:flex;align-items:center;gap:12px;min-height:48px;border:2px solid #d7e0cc;border-radius:14px;padding:12px;cursor:pointer}
+.personal-outcomes label.selected{border-color:#516e36;background:#e6f1cf}
+.personal-outcomes input{accent-color:#36543b;flex-shrink:0;width:18px;height:18px;margin:0}
+.personal-reflection textarea{margin-bottom:18px}
+.personal-reflection .personal-text-button{display:block;margin-top:4px}
+.personal-saved-reflection{padding:16px;background:#f0f3e7;border-radius:14px;margin:20px 0}
+.personal-saved-reflection p{margin:10px 0 0}
+.personal-saved-reflection button{margin-top:16px}
+.personal-inline-note{padding:16px;margin:16px 0;border:1px solid #d9c99e;background:#fff7e6;border-radius:14px;font-size:.86rem}
+.personal-retained{border:2px solid #d4ba7b;background:#fff7e6}
+.personal-recovery-entry{border-top:1px solid #d4ba7b;margin-top:22px;padding-top:22px}
+.personal-recovery-entry blockquote{margin:16px 0;padding-left:16px}
+.personal-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.personal-comparison{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin:24px 0}
+.personal-comparison>div{background:#f1f3e9;padding:18px;border-radius:16px;min-width:0}
+.personal-comparison h3{font-size:.85rem;letter-spacing:0;color:#536257}
+.personal-comparison blockquote{font-size:.96rem;border:0;padding:0;margin:16px 0 0;line-height:1.65}
+.personal-path details>summary{min-height:44px;display:list-item;padding:10px 0;line-height:1.5}
+.personal-path details[open]>summary{margin-bottom:18px}
+.personal-history ol{list-style:none;padding:0;margin:0}
+.personal-history li{border-top:1px solid #dce4d4;padding:22px 0}
+.personal-history li h3{line-height:1.4;font-size:1rem;margin-bottom:12px}
+.personal-history li p{font-size:.92rem}
+.personal-history .personal-muted{margin-top:14px}
+.personal-settings .personal-muted{margin-top:20px}
+.personal-error:focus{outline:3px solid #6754cb;outline-offset:4px}
+.personal-status:empty{display:none}
+.personal-status{padding:14px 18px;background:#eaf0dd;border-radius:14px;font-size:.88rem;margin:16px 0}
+@media(max-width:600px){
+  .personal-card{padding:20px;border-radius:20px;margin:16px 0}
+  .personal-lumi{gap:12px}
+  .personal-lumi .lumi-portrait{flex-basis:72px;width:72px;height:72px;max-width:72px}
+  .personal-lumi p{font-size:.91rem}
+  .personal-session-lumi{padding:12px 14px}
+  .personal-comparison{grid-template-columns:1fr}
+  .personal-progress>p span{display:block;margin-top:4px}
+  .personal-addresses{gap:8px}
+  .personal-addresses button{flex-basis:100px;padding:10px 8px;font-size:.85rem}
+  .personal-scale{gap:4px}
+  .personal-scale label{gap:4px}
+  .personal-scale input{width:13px;height:13px}
+  .personal-self-check{padding:16px}
+  .personal-actions{align-items:stretch;flex-direction:column}
+}
