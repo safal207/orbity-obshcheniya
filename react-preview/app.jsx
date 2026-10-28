@@ -3,7 +3,10 @@ import { createRoot } from 'react-dom/client';
 import * as ru from '../dist/course.js';
 import * as en from '../dist/course.en.js';
 import { createProgressStore, PROGRESS_KEY, hasLessonStart } from '../dist/progress-store.js';
-import { metrics, prepareImport, backupJSON } from './model.mjs';
+import { metrics, backupJSON } from './model.mjs';
+import { createBackupStore } from './backup.mjs';
+import { learningFocus } from './practice-progress.mjs';
+import { PracticeProgress } from './practice-progress.jsx';
 import { learningRoute, resumeTarget, nextLesson } from './navigation.mjs';
 import { TopicPicker, Guided } from './guided.jsx';
 import { Review } from './review.jsx';
@@ -20,6 +23,7 @@ import { dailyStatus } from './personal-path.mjs';
 import { personalStore, usePersonalPath } from './use-personal-path.jsx';
 
 const store = createProgressStore({ lessons: ru.lessons, missions: ru.missions, requireLessonStart: true });
+const backups = createBackupStore({ courseStore: store, personalStore });
 const accents = ['#b7c6ff', '#c9ee92', '#ffcf88', '#d8bdff', '#ffbab6', '#a9e6dd', '#f4bde7', '#cbdc9f'];
 const symbols = ['✦', '◉', '♡', '☾', '◇', '⌂', '☀', '∞'];
 const errorCopy = {
@@ -29,10 +33,13 @@ const errorCopy = {
   LOCK_UNAVAILABLE: ['Безопасное сохранение недоступно. Нужен браузер с Web Locks и HTTPS или localhost.', 'Safe saving is unavailable. Use a browser with Web Locks over HTTPS or localhost.'],
   LOCK_TIMEOUT: ['Хранилище занято другой вкладкой. Повторите сохранение.', 'Another tab is using storage. Please retry saving.'],
   NOTE_CONFLICT: ['Эту заметку изменили в другой вкладке. Ваш черновик сохранён здесь. Скопируйте его перед сравнением; чужой текст не перезаписан.', 'Another tab changed this note. Your draft is retained here. Copy it before comparing; the other text was not overwritten.'],
-  INVALID_FILE: ['Файл не подходит: нужен полный корректный экспорт v1 размером до 512 КиБ. Данные не заменены.', 'Use a complete valid v1 backup up to 512 KiB. Saved data has not been replaced.'],
+  INVALID_FILE: ['Файл не подходит: нужна корректная копия курса v1 (до 512 КиБ) или полная копия v2 (до 1 МиБ). Данные не заменены.', 'Use a valid v1 course backup (up to 512 KiB) or v2 full backup (up to 1 MiB). Saved data has not been replaced.'],
   IMPORT_CONFLICT: ['Данные изменились после подтверждения. Импорт отменён — начните его заново.', 'Data changed after the confirmation snapshot. Import was cancelled; start again.'],
   FLOW_CONFLICT: ['Тема или данные изменились в другой вкладке. Ответ не сохранён. Продолжите с актуального вопроса или выберите тему снова.', 'The topic or data changed in another tab. Your answer was not saved. Continue from the current question or choose a topic again.'],
-  UNSAVED: ['Сначала сохраните или скопируйте несохранённые заметки. Импорт пока заблокирован.', 'Save or copy unsaved notes first. Import is blocked while drafts exist.'],
+  UNSAVED: ['Сначала сохраните или скопируйте несохранённые заметки и фразы. Импорт пока заблокирован.', 'Save or copy unsaved notes and phrases first. Import is blocked while drafts exist.'],
+  PERSONAL_STORAGE_FAILED: ['Не удалось прочитать личный путь. Полная копия не создана. Можно перечитать личный путь или скачать отдельно данные курса.', 'Your personal path could not be read. No full backup was created. Reload your path or export the course separately.'],
+  PERSONAL_INVALID_STORED: ['Личный путь не удалось прочитать. Полная копия не создана. Копию курса можно скачать отдельно.', 'Your personal path could not be read. No full backup was created. You can export the course separately.'],
+  RESTORE_PARTIAL: ['Восстановление не завершено, и браузер не смог полностью вернуть прежние данные. Скачайте данные до попытки восстановления кнопкой ниже и сохраните исходный файл копии.', 'Restore did not finish, and the browser could not fully roll back the changes. Download the data from before the restore below and keep your original backup file.'],
 };
 const routeTipCopy = {
   path: ['Вернитесь к одному маленькому шагу. Можно двигаться в своём темпе.', 'Come back to one small step. You can go at your own pace.'],
@@ -60,6 +67,9 @@ function App() {
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState('');
   const [pending, setPending] = useState(0);
+  const [backupPending, setBackupPending] = useState(false);
+  const [restoreRecovery, setRestoreRecovery] = useState(null);
+  const backupBusyRef = useRef(false);
   const pendingWrites = useRef(0);
   const [route, setRoute] = useState(() => learningRoute(location.hash, ru.lessons, ru.missions));
   const [moduleId, setModuleId] = useState(ru.modules[0].id);
@@ -75,6 +85,7 @@ function App() {
   const routeTipTimer = useRef(null);
   const lastTipRoute = useRef(null);
   const hasDrafts = () => drafts.current.size > 0;
+  const hasUnsavedData = () => hasDrafts() || personal.hasDrafts();
   const explain = (code) => (errorCopy[code] || errorCopy.STORAGE_FAILED)[lang === 'ru' ? 0 : 1];
   const refresh = useCallback(() => {
     try {
@@ -236,36 +247,60 @@ function App() {
   }
   async function importFile(file) {
     if (!file) return;
-    if (pendingWrites.current > 0) {
+    if (pendingWrites.current > 0 || personal.isPending() || backupBusyRef.current) {
       if (fileRef.current) fileRef.current.value = '';
       return;
     }
+    backupBusyRef.current = true; setBackupPending(true);
     setNotice('');
     try {
-      const prepared = await prepareImport(file, store, hasDrafts);
-      if (!confirm(t('Заменить сохранённый прогресс этой резервной копией? Это заменит уроки, заметки и задания.',
-        'Replace saved progress with this backup? Lessons, notes and missions will be replaced.'))) return;
-      if (hasDrafts()) throw Object.assign(new Error('UNSAVED'), { code: 'UNSAVED' });
-      if (await write(() => store.replace(prepared.imported, prepared.token))) {
+      const prepared = await backups.prepare(file, hasUnsavedData);
+      const message = prepared.version === 2
+        ? t('Заменить сохранённый прогресс этой резервной копией? Будут заменены курс и личный путь: профиль, фразы, планы и наблюдения.',
+          'Replace saved progress with this backup? This replaces the course and personal path: profile, phrases, plans and reflections.')
+        : t('Заменить сохранённый прогресс этой резервной копией? Это заменит уроки, заметки и задания. Личный путь останется без изменений.',
+          'Replace saved progress with this backup? Lessons, notes and missions will be replaced. Your personal path will be kept.');
+      if (!confirm(message)) return;
+      if (hasUnsavedData() || personal.isPending()) throw Object.assign(new Error('UNSAVED'), { code: 'UNSAVED' });
+      if (await write(async () => {
+        try { await backups.restore(prepared, () => hasUnsavedData() || personal.isPending() || pendingWrites.current > 1); }
+        catch (failure) { if (failure.recovery) setRestoreRecovery(failure.recovery); personal.refresh(); throw failure; }
+      })) {
         const currentRoute = learningRoute(location.hash, ru.lessons, ru.missions);
         if (!currentRoute.id && !currentRoute.moduleId) {
           setModuleId(prepared.imported.focusModule ?? ru.modules[0].id);
         } else {
           restoreSavedModuleOnPath.current = true;
         }
-        setNotice(t('Резервная копия восстановлена.', 'Backup restored.'));
+        if (prepared.version !== 2 || personal.refresh() !== undefined) {
+          setRestoreRecovery(null);
+          setNotice(t('Резервная копия восстановлена.', 'Backup restored.'));
+        } else setError('PERSONAL_STORAGE_FAILED');
       }
     } catch (e) { setError(e.code || 'INVALID_FILE'); }
-    finally { if (fileRef.current) fileRef.current.value = ''; }
+    finally { backupBusyRef.current = false; setBackupPending(false); if (fileRef.current) fileRef.current.value = ''; }
   }
-  function exportFile() {
-    if (pendingWrites.current > 0) return;
+  function downloadJSON(json, filename) {
+    const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
+    const a = document.createElement('a'); a.href = url; a.download = filename; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+  async function exportFile() {
+    if (pendingWrites.current > 0 || personal.isPending() || backupBusyRef.current) return;
+    backupBusyRef.current = true; setBackupPending(true); setNotice('');
     try {
-      const snapshot = store.read();
-      const url = URL.createObjectURL(new Blob([backupJSON(snapshot)], { type: 'application/json' }));
-      const a = document.createElement('a'); a.href = url; a.download = 'orbity-progress-v1.json'; a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-      setNotice(t('Экспортирован сохранённый прогресс. Несохранённые черновики в файл не входят.', 'Saved progress exported. Unsaved drafts are not included.'));
+      const file = await backups.export();
+      downloadJSON(file.json, file.filename);
+      setNotice(t('Экспортирован сохранённый прогресс. Файл включает личный путь, если он начат. Несохранённые черновики в файл не входят.',
+        'Saved progress exported. The file includes your personal path if started. Unsaved drafts are not included.'));
+    } catch (e) { setError(e.code || 'STORAGE_FAILED'); }
+    finally { backupBusyRef.current = false; setBackupPending(false); }
+  }
+  function exportCourseFile() {
+    if (pendingWrites.current > 0 || backupBusyRef.current) return;
+    try {
+      downloadJSON(backupJSON(store.read()), 'orbity-progress-v1.json');
+      setNotice(t('Скачана только копия курса. Личный путь в неё не входит.', 'Only the course was exported. This file does not include your personal path.'));
     } catch (e) { setError(e.code || 'STORAGE_FAILED'); }
   }
   const stats = metrics(state, course.lessons, now);
@@ -286,6 +321,8 @@ function App() {
       : newLearner ? t('Начать первый урок', 'Start your first lesson') : t('Продолжить путь', 'Continue your journey');
   const guidedTopic = route.topic || state?.guidedFlow?.topic;
   const daily = dailyStatus(personal.state, now);
+  const focus = learningFocus(state, course.modules, lang);
+  const backupBusy = !!pending || !!personal.pending || backupPending;
   const dailyCopy = personal.error ? t('Открыть мой путь', 'Open my path')
     : daily.phase === 'new' ? t('Начать мой путь', 'Start my path')
       : daily.phase === 'week-done' ? t('Итоги моего пути', 'My path summary')
@@ -316,10 +353,14 @@ function App() {
           {route.view === 'path' && <div className="dashboard">
             <div className="journey"><section className="hero"><div><span className="eyebrow">{t('МАЛЕНЬКИЙ ШАГ. БОЛЬШЕ ПОНИМАНИЯ.', 'SMALL STEPS. MORE UNDERSTANDING.')}</span>
               <h1 id="page-title" tabIndex={-1}>{t('Ближе друг', 'A little closer')}<br/>{t('к другу.', 'to each other.')}</h1>
-              <p>{t('Учимся слышать, говорить и договариваться — по одному разговору.', 'Practice listening, speaking and finding common ground. One conversation at a time.')}</p>
+              <p>{t('Тренируем ясные просьбы: 7 занятий по 5 минут и своя фраза после каждого. Можно заниматься самостоятельно.', 'Practise clear requests: 7 sessions of 5 minutes, with your own phrase after each. You can practise on your own.')}</p>
             </div><button className="primary hero-help" data-testid="daily-start" onClick={() => go('today')}>✦ {dailyCopy} <span aria-hidden="true">→</span></button><div className="hero-learning">
-              <div className="button-row"><button className="secondary" data-testid="help-now" onClick={() => go('now')}>{t('Помоги мне сейчас', 'Help me now')}</button><button className="secondary" data-testid="resume" disabled={!resume || !!pending} onClick={() => go(resume)}>{resumeCopy} <span aria-hidden="true">→</span></button>
-                <button className="secondary" onClick={() => go('start')}>{t('Выбрать ситуацию', 'Choose a situation')}</button></div>
+              <div className="entry-options" role="group" aria-label={t('Другие способы начать', 'Other ways to start')}>
+                <section className="entry-option"><h2>{t('Нужны слова прямо сейчас?', 'Need words right now?')}</h2><p>{t('Около минуты: один безопасный шаг и пример фразы для вашей ситуации.', 'About a minute: one safe next step and a sample phrase for your situation.')}</p><button className="secondary" data-testid="help-now" onClick={() => go('now')}>{t('Помоги мне сейчас', 'Help me now')}</button></section>
+                <section className="entry-option"><h2>{t('Хочется потренировать конкретный навык?', 'Want to practise a specific skill?')}</h2><p>{t('Выберите, что трудно: слушать, спокойно спорить или говорить о потребностях. Затем — три вводных вопроса.', 'Choose what feels difficult: listening, handling conflict or expressing needs. Then try three introductory questions.')}</p><button className="secondary" onClick={() => go('start')}>{t('Выбрать ситуацию', 'Choose a situation')}</button></section>
+              </div>
+              <span className="course-resume-label">{t('Учиться по порядку · курс из 32 уроков', 'Learn step by step · 32-lesson course')}</span>
+              <div className="button-row"><button className="secondary" data-testid="resume" disabled={!resume || !!pending} onClick={() => go(resume)}>{resumeCopy} <span aria-hidden="true">→</span></button></div>
               {state && <p className="muted" data-testid="resume-label">{state.guidedFlow ? state.guidedFlow.step < 3 ? `${t('Сохранён вопрос', 'Saved question')} ${state.guidedFlow.step + 1}/3` : t('Три вопроса готовы — откройте результат.', 'Three questions are ready — open the result.') : savedNext ? `${t('Следующий урок', 'Next lesson')}: ${savedNext.title}` : t('Все уроки пройдены.', 'All lessons completed.')}</p>}
             </div><Lumi t={t} hero mood={error ? 'support' : daily.phase === 'done-today' || daily.phase === 'week-done' ? 'success' : 'idle'} message={error ? t('Сначала разберёмся с сообщением выше.', 'Let’s address the message above first.') : t('Учимся говорить о потребностях.', 'Learn to express your needs.')}/></section>
               {routeGreeting}
@@ -338,7 +379,7 @@ function App() {
               <section className="kind-note"><span aria-hidden="true">♡</span><p>{t('Здесь нет «плохих партнёров» и потерянных жизней. Можно ошибаться, делать паузу и возвращаться.', 'No “bad partners”, no lost lives. You can make mistakes, take a break and return.')}</p></section>
             </aside></div>}
           {route.view === 'now' && <QuickHelp t={t} lang={lang} scenarioId={route.scenarioId} go={go}/>}
-          <div hidden={route.view !== 'today'}><PersonalPath lang={lang} store={personalStore} state={personal.state} loaded={personal.loaded} error={personal.error} run={personal.run} refresh={personal.refresh} now={now} active={route.view === 'today'} onDirtyChange={personal.onDirtyChange} go={go}/></div>
+          <div hidden={route.view !== 'today'}><PersonalPath lang={lang} store={personalStore} state={personal.state} loaded={personal.loaded} error={personal.error} run={personal.run} refresh={personal.refresh} now={now} active={route.view === 'today'} onDirtyChange={personal.onDirtyChange} go={go} experience={route.experience} focus={focus}/></div>
           {route.view === 'start' && <TopicPicker state={state} pending={pending} t={t} start={start}/>}
           {route.view === 'guided' && (guidedTopic ? <Guided key={guidedTopic} topic={guidedTopic} state={state} course={course} store={store} pending={pending} t={t} write={write} notePanel={notePanel} go={go} onSync={() => setError((current) => current === 'FLOW_CONFLICT' ? null : current)}/> : <TopicPicker state={state} pending={pending} t={t} start={start}/>)}
           {route.view === 'review' && <Review state={state} course={course} store={store} pending={pending} t={t} write={write} notePanel={notePanel} go={go} onSync={() => setError((current) => current === 'FLOW_CONFLICT' ? null : current)}/>}
@@ -346,17 +387,47 @@ function App() {
           {route.view === 'missions' && <section className="content-page"><span className="eyebrow">{t('ИЗ ПРИЛОЖЕНИЯ — В РАЗГОВОР', 'FROM PRACTICE TO CONVERSATION')}</span><h1 id="page-title" tabIndex={-1}>{t('Маленькие дела.', 'Little actions.')}<br/>{t('Настоящее внимание.', 'Real attention.')}</h1><p className="lead">{t('Попробуйте, когда обоим комфортно. Отметка — ваша запись, а не оценка отношений.', 'Try these when you both feel comfortable. Checkmarks are your records, not relationship scores.')}</p><div className="missions-grid">{course.missions.map((m, i) => <article className="card mission" key={m.id} style={{ '--accent': accents[i] }}><span className="mission-icon" aria-hidden="true">{symbols[i]}</span><h2>{m.title}</h2><p>{m.description}</p>{m.steps.map((step, j) => <label className="mission-step" key={j}><input type="checkbox" checked={!!state?.missionSteps[m.id]?.[j]} disabled={!state || !!pending} onChange={(e) => write(() => store.setMissionStep(m.id, j, e.target.checked))}/><span>{step}</span></label>)}<button className="secondary" disabled={!!pending} onClick={() => go(`mission/${m.id}`)}>{t('Открыть пошагово', 'Open step by step')}</button></article>)}</div></section>}
           {route.view === 'mission' && mission && <MissionDetail mission={mission} state={state} pending={pending} t={t} write={write} go={go}/>}
 
-          {route.view === 'about' && <section className="content-page"><span className="eyebrow">{t('О ПОДХОДЕ', 'ABOUT THE APPROACH')}</span><h1 id="page-title" tabIndex={-1}>{t('О подходе', 'About the approach')}</h1><p className="lead">{t('Меньше догадок. Больше вопросов к конкретному человеку.', 'Fewer assumptions. More questions for the person in front of you.')}</p><p>{t('Это независимый образовательный тренажёр с оригинальными упражнениями. Он помогает практиковать слушание, ясные просьбы и восстановление разговора, но не оценивает отношения и не заменяет терапию.', 'This is an independent learning tool with original exercises. It helps you practise listening, clear requests and conversation repair, but it does not score relationships or replace therapy.')}</p><p className="muted">{t('При давлении, угрозах или страхе важнее безопасность и поддержка людей или служб, которым вы доверяете.', 'When there is pressure, threats or fear, safety and trusted support matter more than completing an exercise.')}</p></section>}
-          {route.view === 'progress' && <section className="content-page"><span className="eyebrow">{t('ВАШ ПУТЬ, ВАШ ТЕМП', 'YOUR JOURNEY, YOUR PACE')}</span><h1 id="page-title" tabIndex={-1}>{t('Уже получается.', 'Look how far you’ve come.')}</h1><p className="lead">{t('Опыт за завершённые уроки — не оценка вас или ваших отношений.', 'Lesson experience is not a score for you or your relationship.')}</p>
-            <section className="card"><h2>{t('Говорить о своих потребностях', 'Express your needs')}</h2><p>{personal.error ? t('Не удалось прочитать личный путь.', 'Could not read your personal path.') : `${daily.completedCount}/7 ${t('личных занятий завершено. Ваши фразы и наблюдения — внутри пути.', 'personal sessions complete. Your phrases and reflections are inside your path.')}`}</p><button className="primary" onClick={() => go('today')}>{dailyCopy}</button></section>
+          {route.view === 'about' && <section className="content-page">
+            <span className="eyebrow">{t('О ПОДХОДЕ', 'ABOUT THE APPROACH')}</span><h1 id="page-title" tabIndex={-1}>{t('О подходе', 'About the approach')}</h1>
+            <p className="lead">{t('Меньше догадок. Больше вопросов к конкретному человеку.', 'Fewer assumptions. More questions for the person in front of you.')}</p>
+            <p>{t('Это независимый образовательный тренажёр с оригинальными упражнениями. Он помогает практиковать слушание, ясные просьбы и восстановление разговора, но не оценивает отношения и не заменяет терапию.', 'This is an independent learning tool with original exercises. It helps you practise listening, clear requests and conversation repair, but it does not score relationships or replace therapy.')}</p>
+            <section className="card"><h2>{t('Кто делает проект', 'Who makes this project')}</h2>
+              <p>{t('Автор и разработчик — ', 'Created and developed by ')}<a href="https://github.com/safal207">{t('Алексей Сафонов', 'Aleksey Safonov')}</a>.</p>
+              <p>{t('Упражнения предлагают разобрать бытовую ситуацию, сформулировать свои слова и проверить их в добровольной практике. Примеры можно менять под себя. Выводы о человеке по полу не делаются.', 'The exercises explore an everyday situation, invite you to find your own words and try them voluntarily. Adapt the examples to your situation. Gender is not used to infer someone’s character.')}</p>
+              <p>{t('Завершённые уроки, XP и самооценки не доказывают улучшение отношений. Здесь нет диагностики или профессиональной оценки вашей фразы.', 'Completed lessons, XP and self-ratings do not prove that a relationship has improved. The app does not diagnose or professionally assess your phrase.')}</p>
+            </section>
+            <h2 className="progress-learning-title">{t('Источники идей', 'Sources of ideas')}</h2>
+            <p>{t('Материалы ниже указаны как источники идей об общении, а не как подтверждение эффективности этого тренажёра или одобрение со стороны их авторов.', 'These materials are sources of ideas about communication, not evidence of this app’s effectiveness or an endorsement by their authors.')}</p>
+            <ul className="about-sources">
+              <li><a href="https://www.gottman.com/about/the-gottman-method/">{t('Метод Готтмана', 'The Gottman Method')}</a> — {t('контакт, конфликты и восстановление разговора.', 'connection, conflict and repair.')}</li>
+              <li><a href="https://www.nonviolentcommunication.com/pdf_files/nvc2-chapter-one.html">Nonviolent Communication</a> — {t('наблюдение, чувства, потребности и просьба.', 'observations, feelings, needs and requests.')}</li>
+              <li><a href="https://www.purdue.edu/uns/html4ever/2004/040217.MacGeorge.sexroles.html">{t('Исследование Университета Пердью', 'Purdue University research')}</a> — {t('сходства в предпочтениях поддержки.', 'similarities in support preferences.')}</li>
+            </ul>
+            <p>{t('Метафора «Марса и Венеры» вдохновлена ', 'The “Mars and Venus” metaphor was inspired by ')}<a href="https://www.marsvenus.com/books">{t('книгами Джона Грэя', 'John Gray’s books')}</a>{t('; она не задаёт правил поведения для женщин и мужчин. Это не официальный курс по этим книгам.', '; it does not prescribe how women or men behave. This is not an official course based on those books.')}</p>
+            <p><a href="https://github.com/safal207/orbity-obshcheniya/issues/new">{t('Сообщить об ошибке или предложить улучшение', 'Report an issue or suggest an improvement')}</a>. {t('Сообщения на GitHub публичны: не добавляйте личные подробности разговоров.', 'GitHub issues are public: leave out private details of your conversations.')}</p>
+            <p className="muted">{t('При давлении, угрозах или страхе важнее безопасность и поддержка людей или служб, которым вы доверяете.', 'When there is pressure, threats or fear, safety and trusted support matter more than completing an exercise.')}</p>
+          </section>}
+          {route.view === 'progress' && <section className="content-page"><span className="eyebrow">{t('ВАШ ПУТЬ, ВАШ ТЕМП', 'YOUR JOURNEY, YOUR PACE')}</span><h1 id="page-title" tabIndex={-1}>{t('Мои слова. Мой опыт.', 'My words. My experience.')}</h1><p className="lead">{t('Посмотрите, что вы подготовили, что удалось попробовать и к чему хочется вернуться.', 'See what you prepared, what you got to try and what you would like to revisit.')}</p>
+            <PracticeProgress personal={personal} now={now} t={t} go={go} dailyCopy={dailyCopy} focus={focus}/>
             <Lumi t={t} message={t('Пауза не отнимает опыт. Возвращайтесь, когда будет удобно.', 'Breaks do not remove experience. Return when it suits you.')}/>
+            <h2 className="progress-learning-title">{t('Учебный прогресс', 'Course progress')}</h2><p className="muted">{t('Уроки и XP показывают прохождение курса, а не изменение ваших отношений.', 'Lessons and XP show course completion, not a change in your relationship.')}</p>
             <div className="metric-grid"><div className="card"><span>✦</span><strong data-testid="xp-total">{stats ? stats.xp : '—'}</strong><p>{t('очков опыта', 'experience points')}</p></div><div className="card"><span>◉</span><strong>{stats ? `${stats.count}/${stats.total}` : '—'}</strong><p>{t('уроков завершено', 'lessons completed')}</p></div><div className="card"><span>☀</span><strong>{stats ? stats.streak : '—'}</strong><p>{t('дней подряд с новым уроком', 'consecutive days with a new lesson')}</p></div></div>
             <p className="muted">{t('Серия учитывает только первое завершение урока по местной дате. Повторы не добавляют XP. Паузы не отнимают накопленный опыт.', 'The series counts only first lesson completions by local date. Replays do not add XP. Breaks never remove earned experience.')}</p>
-            <section className="card backup"><h2>{t('Резервная копия курса', 'Course backup')}</h2><p>{t('Данные сохраняются в этом браузере, без отправки на сервер. Этот файл содержит уроки курса, заметки и задания. Личный профиль и занятия пути в него не входят; свои фразы можно скачать внутри пути.', 'Data stays in this browser and is not sent to a server. This file contains course lessons, notes and missions. Your personal profile and path sessions are separate; you can download your phrases inside your path.')}</p><div className="button-row"><button className="primary" disabled={!state || !!pending} onClick={exportFile}>{t('Скачать копию', 'Export backup')}</button><button className="secondary" disabled={!!pending} onClick={() => fileRef.current?.click()}>{t('Восстановить из файла', 'Restore from file')}</button><input ref={fileRef} type="file" accept="application/json,.json" className="visually-hidden" disabled={!!pending} aria-label={t('Резервная копия JSON', 'JSON backup')} onChange={(e) => importFile(e.target.files?.[0])}/></div>{hasDrafts() && <p role="status">{t('Есть несохранённые заметки. Экспорт их не включает; импорт заблокирован.', 'There are unsaved notes. Export excludes them; import is blocked.')}</p>}</section>
+            <section className="card backup"><h2>{t('Резервная копия всего пути', 'Back up your whole journey')}</h2>
+              <p>{t('Данные остаются в этом браузере. Скачайте один файл, чтобы перенести курс и личный путь: профиль, свои фразы, планы и наблюдения. Файл содержит личные записи — храните его у себя.', 'Data stays in this browser. Download one file to move your course and personal path: profile, phrases, plans and reflections. The file contains private notes — keep it private.')}</p>
+              <div className="button-row"><button className="primary" disabled={!state || !personal.loaded || backupBusy || !!personal.error} onClick={exportFile}>{t('Скачать копию', 'Export backup')}</button>
+                <button className="secondary" disabled={backupBusy} onClick={() => fileRef.current?.click()}>{t('Восстановить из файла', 'Restore from file')}</button>
+                <input ref={fileRef} type="file" accept="application/json,.json" className="visually-hidden" disabled={backupBusy} aria-label={t('Резервная копия JSON', 'JSON backup')} onChange={(e) => importFile(e.target.files?.[0])}/>
+                {personal.error && <button className="secondary" disabled={!state || backupBusy} onClick={exportCourseFile}>{t('Скачать только курс', 'Export course only')}</button>}
+              </div>
+              <p className="muted">{t('Старые копии v1 восстанавливают только курс и сохраняют текущий личный путь. Полная копия v2 заменяет оба раздела после подтверждения. Несохранённые черновики в файл не входят.', 'Older v1 backups restore only the course and keep your current personal path. A full v2 backup replaces both after confirmation. Unsaved drafts are not included.')}</p>
+              {hasUnsavedData() && <p role="status">{t('Есть несохранённые заметки или фразы. Экспорт их не включает; импорт заблокирован.', 'There are unsaved notes or phrases. Export excludes them; import is blocked.')}</p>}
+              {restoreRecovery && <button className="secondary" onClick={() => downloadJSON(restoreRecovery, 'orbity-before-restore.json')}>{t('Скачать данные до попытки восстановления', 'Download data from before the restore')}</button>}
+            </section>
             {course.lessons.filter((l) => state?.notes[l.id] || drafts.current.has(l.id)).map((l) => <details className="card" key={l.id}><summary>{l.title}</summary>{notePanel(l.id)}</details>)}
           </section>}
         </>}
-        <footer><details><summary>{t('Бережно к себе и вашим данным', 'Care for yourself and your data')}</summary><p>{t('Это учебный тренажёр, не терапия. Он не определяет характер по полу и не доказывает улучшение отношений. При угрозах или насилии важнее безопасность, а не выполнение заданий.', 'This is a learning tool, not therapy. It does not define character by gender or prove relationship improvement. In situations involving threats or violence, safety comes before exercises.')}</p><p>{t('RU и EN используют одно хранилище. Черновики остаются только в открытой вкладке, не в резервной копии. При переходе на эту версию перезагрузите старые вкладки.', 'RU and EN share storage. Unsaved drafts live only in the open tab and are not backups. Reload older tabs when switching to this version.')}</p><p>{t('Адрес сохраняет экран урока при обновлении и переходах Назад/Вперёд. При открытии главной кнопка продолжения возвращает к сохранённому уроку или вопросу знакомства.', 'The address preserves the lesson screen on reload and Back/Forward. From the home page, Continue returns to your saved lesson or introduction question.')}</p></details><small>{t('Орбиты общения · маленькие шаги к пониманию', 'Conversation Orbits · small steps toward understanding')}</small></footer>
+        <footer><details><summary>{t('Бережно к себе и вашим данным', 'Care for yourself and your data')}</summary><p>{t('Это учебный тренажёр, не терапия. Он не определяет характер по полу и не доказывает улучшение отношений. При угрозах или насилии важнее безопасность, а не выполнение заданий.', 'This is a learning tool, not therapy. It does not define character by gender or prove relationship improvement. In situations involving threats or violence, safety comes before exercises.')}</p><p>{t('RU и EN используют одно хранилище. Черновики остаются только в открытой вкладке, не в резервной копии. При переходе на эту версию перезагрузите старые вкладки.', 'RU and EN share storage. Unsaved drafts live only in the open tab and are not backups. Reload older tabs when switching to this version.')}</p><p>{t('Адрес сохраняет экран урока при обновлении и переходах Назад/Вперёд. При открытии главной кнопка продолжения возвращает к сохранённому уроку или вопросу знакомства.', 'The address preserves the lesson screen on reload and Back/Forward. From the home page, Continue returns to your saved lesson or introduction question.')}</p></details><nav className="footer-links" aria-label={t('О проекте', 'About this project')}><a href="#about">{t('Автор и подход', 'Creator and approach')}</a><a href="https://github.com/safal207/orbity-obshcheniya/issues/new">{t('Обратная связь', 'Feedback')}</a></nav><small>{t('Орбиты общения · маленькие шаги к пониманию', 'Conversation Orbits · small steps toward understanding')}</small></footer>
       </main>
     </div>
   </div>;

@@ -25,7 +25,7 @@ function errorText(error, t) {
 
 /** Form drafts deliberately live here, not in the course progress store. The parent
  * keeps this component mounted across routes and guards unloading while dirty. */
-export function PersonalPath({ lang, state, loaded, error, store, run, refresh, now = Date.now(), active, onDirtyChange, go }) {
+export function PersonalPath({ lang, state, loaded, error, store, run, refresh, now = Date.now(), active, onDirtyChange, go, experience, focus }) {
   const t = (ru, en) => lang === 'en' ? en : ru;
   const content = personalPathContent[lang === 'en' ? 'en' : 'ru'];
   const status = dailyStatus(state, now);
@@ -47,6 +47,16 @@ export function PersonalPath({ lang, state, loaded, error, store, run, refresh, 
 
   useEffect(() => { onDirtyChange?.(Boolean(dirty)); }, [dirty, onDirtyChange]);
   useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
+  useEffect(() => {
+    if (!active || !experience || !state?.sessions.length) return undefined;
+    // Focus after the app's normal route heading, without a timing guess.
+    const frame = requestAnimationFrame(() => {
+      const target = document.getElementById(`daily-reflection-title-${state.sessions.at(-1).index}`);
+      target?.focus({ preventScroll: true });
+      target?.scrollIntoView({ block: 'start' });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [active, experience, state?.sessions.length]);
   useEffect(() => {
     const key = `${status.phase}:${status.index}`;
     if (phaseRef.current !== key && active) {
@@ -134,7 +144,7 @@ export function PersonalPath({ lang, state, loaded, error, store, run, refresh, 
     const editing = !saved || editingReflection === session.index || Boolean(local);
     return <section className="personal-card personal-reflection" aria-labelledby={`daily-reflection-title-${session.index}`} data-testid="daily-reflection">
       <span className="personal-eyebrow">{t('Необязательно · вернуться к опыту', 'Optional · reflect on your experience')}</span>
-      <h2 id={`daily-reflection-title-${session.index}`}>{t('Удалось попробовать?', 'Did you get to try it?')}</h2>
+      <h2 id={`daily-reflection-title-${session.index}`} tabIndex={-1}>{t('Удалось попробовать?', 'Did you get to try it?')}</h2>
       <p>{t(`К занятию ${session.index + 1}: «${content[session.index].title}». Можно потренироваться для себя; разговор с другим человеком не обязателен.`, `For session ${session.index + 1}: “${content[session.index].title}”. Practising on your own counts; a conversation with someone else is optional.`)}</p>
       {saved && <div className="personal-saved-reflection" data-testid="daily-reflection-saved">
         <strong>{t('Сохранённый ответ', 'Saved reflection')}: {outcomeLabel(saved.outcome)}</strong>
@@ -190,6 +200,7 @@ export function PersonalPath({ lang, state, loaded, error, store, run, refresh, 
         <p>{t(`Завершено ${completed.length} из 7 занятий`, `${completed.length} of 7 sessions completed`)}<span> · {t('Пропуски не обнуляют путь', 'Missed days do not reset your path')}</span></p>
       </div>}
     </header>
+    {focus && <section className="focus-context" data-testid="daily-focus"><strong>{t('Моя тема курса: ', 'My course topic: ')}{focus.title}</strong><p>{focus.reason}</p><button className="text-action" onClick={() => go(focus.route)}>{t('Вернуться к этой теме', 'Return to this topic')}</button></section>}
     {visibleError && <div className="alert personal-error" data-testid="daily-error" role="alert" tabIndex={-1} ref={errorRef}>
       <p>{errorText(visibleError, t)}</p>
       {error && <button className="secondary" type="button" onClick={() => { const result = refresh(); if (result !== undefined) setFailure(null); }}>{t('Перечитать данные', 'Read data again')}</button>}

@@ -7,9 +7,12 @@ export function usePersonalPath() {
   const [state, setState] = useState(null);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(null);
+  const [pending, setPending] = useState(0);
   const pendingRef = useRef(0);
   const dirtyRef = useRef(false);
   const onDirtyChange = useCallback((dirty) => { dirtyRef.current = dirty; }, []);
+  const hasDrafts = useCallback(() => dirtyRef.current, []);
+  const isPending = useCallback(() => pendingRef.current > 0, []);
   const refresh = useCallback(() => {
     try {
       const next = personalStore.read();
@@ -42,6 +45,7 @@ export function usePersonalPath() {
   }, [refresh]);
   const run = useCallback(async (action) => {
     pendingRef.current++;
+    setPending(count => count + 1);
     try {
       // The store returns the validated snapshot it committed under its lock.
       const next = await action();
@@ -51,7 +55,7 @@ export function usePersonalPath() {
     } catch (failure) {
       refresh();
       throw failure;
-    } finally { pendingRef.current--; }
+    } finally { pendingRef.current--; setPending(count => count - 1); }
   }, [refresh]);
-  return { state, loaded, error, refresh, run, onDirtyChange };
+  return { state, loaded, error, pending, refresh, run, onDirtyChange, hasDrafts, isPending };
 }

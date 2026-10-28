@@ -17,6 +17,39 @@ Lesson, practice and review feedback offer the example, honest clipboard-copy
 feedback and the existing note editor. Saving still uses the shared Web Lock
 store, and successful UI feedback depends on a committed, readable write.
 
+## Personal results and full backups
+
+Progress starts with the visitor's saved phrase, practice plan and self-reported
+experience. Tried, difficult, no opportunity and unrecorded remain distinct;
+they are not a relationship score. The next action uses the latest recorded
+experience, and the saved course topic explains how course work relates to the
+needs-and-requests personal path. A completed week can be compared and revisited
+without resetting it or awarding course XP.
+
+Export includes the personal profile, sessions, phrases, plans and reflections
+in a full v2 file whenever a personal path exists. Course-only visitors retain
+the original v1 export. Both are downloaded locally; no notes are uploaded.
+V1 imports replace only course data and preserve personal storage byte for byte.
+V2 imports validate both sections before confirmation and replace both after
+explicit confirmation. File limits are 512 KiB for v1 and 1 MiB for v2.
+
+Full restore owns the existing course lock, then the personal lock, and compares
+both original storage tokens before writing. Personal revisions advance past
+both the current and imported revision so an old reflection form cannot silently
+overwrite restored data. Unsaved course or personal drafts, including hidden
+forms, block import. Pending writes block the export/restore controls.
+
+The two localStorage keys do not provide crash-atomic transactions. A detected
+write failure rolls back both previous values while holding both locks; it never
+reports success. If the browser also rejects rollback, the UI offers the original
+raw bytes as a recovery download. That recovery file preserves evidence for
+manual recovery; it is not a normal importable v1/v2 backup. Browser/process
+termination between key writes remains a platform limitation. No existing data
+is migrated merely by opening this release.
+
+Creator, exercise principles and sources of ideas are reachable from the footer.
+Source links do not claim clinical validation or endorsement of this app.
+
 ## Build and verification
 
 Use Node 22.12+:
@@ -49,6 +82,11 @@ entries and relative assets, then runs the complete Chromium suite and the
 Firefox guided-restart suite. Only after success does it export the accepted
 website artifact. Pages downloads that artifact in the same workflow run and
 publishes it without checking out or rebuilding different code.
+
+The shared acceptance workflow also runs the personal-result and full-backup
+scenarios in Firefox, including real two-tab restore conflicts. Browser tests
+are discovered by the `*.browser.spec.mjs` pattern so new acceptance files cannot
+be silently omitted from the suite.
 
 PRs and manual feature-branch runs perform validation only. Deployment requires
 a successful main-branch run, both validation jobs and the main-only condition.

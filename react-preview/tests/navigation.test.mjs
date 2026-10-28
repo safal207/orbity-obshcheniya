@@ -33,6 +33,11 @@ test('legacy section links resolve to equivalent React destinations without prog
   assert.deepEqual(learningRoute('#module/missing', lessons), { view: 'path', id: null });
 });
 
+test('experience link selects only the reflection surface, never a completed session', () => {
+  assert.deepEqual(learningRoute('#today/experience', lessons), { view: 'today', id: null, experience: true });
+  assert.deepEqual(learningRoute('#today/unknown', lessons), { view: 'today', id: null });
+});
+
 test('legacy guided URLs cannot select an unearned question', () => {
   for (const hash of ['#guided/0', '#guided/1', '#guided/2', '#guided-done']) assert.deepEqual(learningRoute(hash, lessons), { view: 'guided', id: null, topic: null });
   assert.equal(learningRoute('#guided/unknown', lessons).view, 'path');
