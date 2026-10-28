@@ -45,6 +45,12 @@ function validate(state) {
   return state;
 }
 
+// Backups use the same strict schema as normal reads. Never trust a file's
+// revision or fields merely because it came from another copy of the app.
+export function validatePersonalImport(value) {
+  return value === null ? null : validate(structuredClone(value));
+}
+
 export function dailyStatus(state, now = Date.now()) {
   const today = personalDay(now);
   if (state === null) return { phase: 'new', index: 0, completedCount: 0 };

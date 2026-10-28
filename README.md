@@ -4,6 +4,8 @@ An interactive communication practice site for people in relationships: 8 themes
 
 The React interface pairs a lesson path with Lumi, our original plush companion. Continue a saved lesson or choose a topic and try three short situations, one question at a time. Introductory answers do not count as completed lessons; the lesson progress advances after its teaching step and correct answer. Review revisits up to four completed lessons without awarding duplicate XP.
 
+Progress also brings together your own phrases, practice plans and observations from the seven-session personal path. It suggests a next action from your latest self-reported experience. A full v2 backup includes both course and personal data; older v1 backups still restore only the course and preserve your personal path.
+
 ## Try it in English
 
 - [One-minute practice](https://safal207.github.io/orbity-obshcheniya/en.html#practice/listening-3)
@@ -39,7 +41,9 @@ The previous interface remains in `dist` for regression checks and rollback; `no
 
 Pages публикует проверенную React-сборку после обновления ветки `main`. Старые русские и английские ссылки с адресом урока продолжают работать. Для локального просмотра нужны Node 22.12+, затем `cd react-preview`, `npm ci`, `npm run build`, `npm run preview -- --port 4173` и `http://127.0.0.1:4173/` или `/en.html`. Подробности проверок и ограничения — в [описании выпуска](docs/REACT-RELEASE.md).
 
-Вход в аккаунт не нужен. Прогресс и заметки остаются в `localStorage` этого браузера. В разделе «Прогресс» их можно скачать в JSON и загрузить на другом устройстве. Файл может содержать личные заметки.
+Вход в аккаунт не нужен. Прогресс и заметки остаются в `localStorage` этого браузера. В разделе «Прогресс» собраны свои фразы, планы и наблюдения из личного пути. Следующий шаг учитывает последнюю отметку о вашем опыте, без оценки качества отношений.
+
+Полная копия v2 переносит курс и личный путь одним JSON-файлом: профиль, фразы, планы и наблюдения. Старые копии v1 восстанавливают только курс и сохраняют текущий личный путь. Файл содержит личные записи — храните его у себя.
 
 ## Подход и источники
 
