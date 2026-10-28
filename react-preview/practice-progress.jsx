@@ -44,11 +44,11 @@ export function PracticeProgress({ personal, now, t, go, dailyCopy, focus }) {
       <span className="eyebrow">{t('МОИ СЛОВА И МОЙ ОПЫТ', 'MY WORDS AND EXPERIENCE')}</span>
       <h2 id="practice-result-title">{t('Мой личный результат', 'My personal result')}</h2>
       <p>{t('Практикую: говорить о своих потребностях.', 'Practising: expressing my needs.')} {status.completedCount}/7 {t('занятий сохранено.', 'sessions saved.')}</p>
-      {focus && <div className="focus-context" data-testid="saved-focus"><strong>{t('Моя тема курса: ', 'My course topic: ')}{focus.title}</strong><p>{focus.reason}</p><button className="text-action" onClick={() => go(focus.route)}>{t('Вернуться к этой теме', 'Return to this topic')}</button></div>}
       {last ? <>
         <h3>{t('Моя последняя фраза', 'My latest phrase')}</h3>
         <blockquote className="personal-written" data-testid="progress-phrase">{last.phrase}</blockquote>
         {last.plan && <p className="personal-written" data-testid="progress-plan"><strong>{t('Где попробую: ', 'Where I will try it: ')}</strong>{last.plan}</p>}
+        {focus && <details className="focus-context" data-testid="saved-focus"><summary>{t('Моя тема курса: ', 'My course topic: ')}{focus.title}</summary><p>{focus.reason}</p><button className="text-action" onClick={() => go(focus.route)}>{t('Вернуться к этой теме', 'Return to this topic')}</button></details>}
         <h3>{t('Что я заметил(а)', 'What I noticed')}</h3>
         {last.reflection ? <div data-testid="progress-reflection"><p><strong>{outcomeLabel(last.reflection.outcome)}</strong></p>{last.reflection.note && <p className="personal-written">{last.reflection.note}</p>}</div>
           : <p>{t('Опыт применения пока не записан. Можно вернуться к нему, когда будет удобно.', 'No experience has been recorded yet. You can return to it whenever it suits you.')}</p>}

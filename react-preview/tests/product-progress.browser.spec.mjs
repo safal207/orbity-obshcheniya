@@ -38,6 +38,11 @@ for (const lang of ['ru', 'en']) {
       await expect(page.getByTestId('outcome-tried')).toHaveText('1');
       await expect(page.getByTestId('next-practice-rehearse')).toBeVisible();
       await expect(page.getByTestId('saved-focus')).toContainText(lang === 'ru' ? 'Пауза и восстановление' : 'Pause and Repair');
+      if (width === 320) {
+        const phrase = await page.getByTestId('progress-phrase').boundingBox();
+        const navigation = await page.locator('.sidebar nav').boundingBox();
+        expect(phrase.y + phrase.height).toBeLessThanOrEqual(navigation.y);
+      }
       const boxes = await Promise.all([page.getByTestId('practice-progress').boundingBox(), page.locator('.metric-grid').boundingBox()]);
       expect(boxes[0].y + boxes[0].height).toBeLessThan(boxes[1].y);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
